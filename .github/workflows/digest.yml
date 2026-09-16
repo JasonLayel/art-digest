@@ -104,7 +104,10 @@ jobs:
           git config user.name 'art-digest'
           git config user.email 'github-actions[bot]@users.noreply.github.com'
 
-          if git diff --quiet -- data && git diff --cached --quiet -- data; then
+          # git diff cannot see a file that has never been tracked, so a fresh
+          # checkout where data/ does not exist yet would report "no change"
+          # and commit nothing. git status does see untracked files.
+          if [ -z "$(git status --porcelain -- data)" ]; then
             echo 'No change in the digest; nothing to commit.'
             exit 0
           fi
