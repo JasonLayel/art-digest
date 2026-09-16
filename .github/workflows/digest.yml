@@ -1,0 +1,141 @@
+# Collects the most popular new digital art (ArtStation, Reddit, Pixiv,
+# DeviantArt) and commits the result to data/, which the widget at
+# /art-digest/ reads and the daily email digest is built from.
+#
+# The scheduled run only fires from the default branch (GitHub's rule), so the
+# daily digest starts once this workflow is on master. Pushes that touch the
+# collector run it immediately, and it can always be started by hand.
+name: Art digest
+
+on:
+  schedule:
+    - cron: '5 13 * * *' # 13:05 UTC daily
+  workflow_dispatch:
+  push:
+    paths:
+      - 'collect.mjs'
+      - '.github/workflows/digest.yml'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: art-digest
+  cancel-in-progress: false
+
+jobs:
+  collect:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Test the collector and the mail path
+        run: |
+          node test/run.mjs
+          mkdir -p "${RUNNER_TEMP}/digest-certs"
+          openssl req -x509 -newkey rsa:2048 -nodes -days 2 -subj /CN=localhost \
+            -keyout "${RUNNER_TEMP}/digest-certs/key.pem" \
+            -out "${RUNNER_TEMP}/digest-certs/cert.pem" 2>/dev/null
+          CERT_DIR="${RUNNER_TEMP}/digest-certs" node test/smtp.mjs
+
+      - name: Collect the digest
+        env:
+          # All optional. GitHub's runners are datacenter IPs, which Reddit
+          # throttles and DeviantArt refuses outright; with these secrets set
+          # the collector uses each site's official API instead of guessing at
+          # public endpoints. See art-digest/README.md.
+          REDDIT_CLIENT_ID: ${{ secrets.REDDIT_CLIENT_ID }}
+          REDDIT_CLIENT_SECRET: ${{ secrets.REDDIT_CLIENT_SECRET }}
+          DEVIANTART_CLIENT_ID: ${{ secrets.DEVIANTART_CLIENT_ID }}
+          DEVIANTART_CLIENT_SECRET: ${{ secrets.DEVIANTART_CLIENT_SECRET }}
+          # Pixiv only serves its R-18 ranking to a logged-in session.
+          PIXIV_SESSION: ${{ secrets.PIXIV_SESSION }}
+          # Bluesky's public AppView refuses some datacenter traffic; an app
+          # password (not the account password) gets a signed-in route.
+          BLUESKY_IDENTIFIER: ${{ secrets.BLUESKY_IDENTIFIER }}
+          BLUESKY_APP_PASSWORD: ${{ secrets.BLUESKY_APP_PASSWORD }}
+        run: node collect.mjs
+
+      - name: Summarize the run
+        run: |
+          node -e '
+            const d = require("./data/latest.json");
+            const out = [];
+            out.push(`## 🎨 ${d.items.length} picks · ${new Date(d.generatedAt).toUTCString()}`, "");
+            for (const s of d.sources) {
+              out.push(`- ${s.status === "ok" ? "✅" : "❌"} **${s.label}** — ${s.status === "ok" ? `${s.kept} kept of ${s.fetched}${s.nsfw ? `, ${s.nsfw} marked 18+` : ""}${s.note ? ` (${s.note})` : ""}` : s.error}`);
+              if (s.sample) out.push("", "  <details><summary>sample row</summary>", "", "  ```json", `  ${JSON.stringify(s.sample, null, 2).split("\n").join("\n  ")}`, "  ```", "  </details>", "");
+            }
+            out.push("", "| # | Source | Piece | Artist | Heat |", "|---|---|---|---|---|");
+            d.items.slice(0, 10).forEach((i, n) => {
+              const cell = (t) => String(t ?? "").replace(/\|/g, "\\|").slice(0, 60);
+              out.push(`| ${n + 1} | ${cell(d.sourceLabels[i.source] || i.source)} | [${cell(i.title)}](${i.url}) | ${cell(i.artist)} | ${i.heat} |`);
+            });
+            require("fs").appendFileSync(process.env.GITHUB_STEP_SUMMARY, out.join("\n") + "\n");
+          '
+
+      - name: Email the digest
+        # Only on the daily run and on manual runs, so pushes that touch the
+        # collector don't send mail. Without the secrets this prints a preview
+        # and succeeds.
+        if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+        env:
+          DIGEST_SMTP_USER: ${{ secrets.DIGEST_SMTP_USER }}
+          DIGEST_SMTP_PASS: ${{ secrets.DIGEST_SMTP_PASS }}
+          DIGEST_TO: ${{ secrets.DIGEST_TO }}
+        run: node send-email.mjs
+
+      - name: Upload the digest
+        uses: actions/upload-artifact@v4
+        with:
+          name: art-digest
+          path: |
+            data/latest.json
+            data/email.html
+          retention-days: 14
+
+      - name: Commit the digest
+        run: |
+          set -euo pipefail
+          git config user.name 'art-digest'
+          git config user.email 'github-actions[bot]@users.noreply.github.com'
+
+          if git diff --quiet -- data && git diff --cached --quiet -- data; then
+            echo 'No change in the digest; nothing to commit.'
+            exit 0
+          fi
+
+          count=$(node -p 'require("./data/latest.json").items.length')
+          message="Art digest: ${count} picks for $(date -u +%Y-%m-%d)"
+
+          # The digest is generated output, so a race with another run is not a
+          # merge: the fresher file simply wins. Keep a copy, rebuild the commit
+          # on whatever is on the branch now, and try again — rebasing instead
+          # would stop on a conflict in latest.json and lose this run's digest.
+          fresh=$(mktemp -d)
+          cp -r data/. "${fresh}/"
+
+          for attempt in 1 2 3; do
+            git add data
+            if git diff --cached --quiet; then
+              echo 'The branch already has this digest.'
+              exit 0
+            fi
+            git commit -m "${message}"
+            if git push origin "HEAD:${GITHUB_REF_NAME}"; then
+              echo "Pushed on attempt ${attempt}."
+              exit 0
+            fi
+            echo "Push rejected (attempt ${attempt}); rebuilding on the current branch tip."
+            git fetch origin "${GITHUB_REF_NAME}"
+            git reset --hard "origin/${GITHUB_REF_NAME}"
+            cp -r "${fresh}/." data/
+            sleep $((attempt * 5))
+          done
+
+          echo 'Could not push the digest.' >&2
+          exit 1

@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="theme-color" content="#15101c">
+  <meta name="description" content="The most popular new digital art from ArtStation, Reddit, Pixiv, DeviantArt, Bluesky and Danbooru, collected daily.">
+  <title>Daily Digital Art Digest</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 32 32%27%3E%3Ctext y=%2726%27 font-size=%2726%27%3E%F0%9F%8E%A8%3C/text%3E%3C/svg%3E">
+  <link rel="stylesheet" href="digest.css">
+</head>
+<body>
+  <header class="masthead">
+    <div class="masthead-text">
+      <h1>🎨 Daily Digital Art Digest</h1>
+      <p class="sub">The most popular new work from ArtStation, Reddit, Pixiv, DeviantArt, Bluesky &amp; Danbooru.</p>
+    </div>
+    <div class="masthead-meta">
+      <span id="updated" class="updated" title="When this digest was collected">Loading…</span>
+      <button id="refresh" class="icon-btn" type="button" title="Reload the digest">↻</button>
+    </div>
+  </header>
+
+  <nav class="controls" aria-label="Filters">
+    <div id="filters" class="chips" role="group" aria-label="Filter by source"></div>
+    <div id="ratings" class="chips hidden" role="group" aria-label="Filter by rating"></div>
+    <div class="sorts chips" role="group" aria-label="Sort order">
+      <button class="chip sort-chip is-on" type="button" data-sort="heat">🔥 Hottest</button>
+      <button class="chip sort-chip" type="button" data-sort="new">🕘 Newest</button>
+    </div>
+  </nav>
+
+  <p id="notice" class="notice hidden" role="status"></p>
+
+  <main>
+    <div id="grid" class="grid" aria-busy="true">
+      <div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div>
+      <div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div>
+    </div>
+    <p id="empty" class="empty hidden">Nothing here yet.</p>
+  </main>
+
+  <footer class="foot">
+    <div id="sources" class="source-report"></div>
+    <p class="fine">
+      Collected daily by <code>collect.mjs</code> · thumbnails and titles belong to their
+      artists — every card links back to the original post.
+    </p>
+  </footer>
+
+  <script src="digest.js"></script>
+</body>
+</html>
