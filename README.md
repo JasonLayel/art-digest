@@ -29,6 +29,9 @@ it stays a plain static page with no server, no build and no API keys.
 | --- | --- |
 | `collect.mjs` | Fetches all four sources, normalizes, ranks, writes `data/` |
 | `send-email.mjs` | Sends the digest over SMTP (no dependencies) |
+| `taste.json` | What the digest leans toward: weighted keywords, artists, contexts, and mutes |
+| `tools/merge-taste.mjs` | Folds gallery likes into `taste.json` |
+| `tools/probe-artstation.mjs`, `tools/probe-pinterest.mjs` | Ask a source what it will answer without credentials |
 | `index.html`, `digest.css`, `digest.js` | The widget: filterable gallery of the current digest |
 | `test/run.mjs` | Fixture tests for the parsers, ranking and email template |
 | `test/smtp.mjs` | Mail round-trip against a throwaway local SMTP server |
@@ -152,6 +155,41 @@ Gmail's proxy perfectly well. So a candidate that fails verification is marked
 `thumbVerified: false` and shipped anyway rather than dropped — dropping it is
 what quietly cost every Danbooru image for four days.
 
+### Taste
+
+`taste.json` tilts the digest toward what you like. It holds weighted
+`keywords`, `artists` and `contexts` (a subreddit, hashtag or fandom), plus a
+`mute` list. Edit it by hand — GitHub's web editor works fine on a phone — or
+let the gallery write to it.
+
+Matching runs against a piece's title, artist, context and tags together. An
+artist you have named counts for three times a keyword, because naming an
+artist is deliberate while a word can turn up by accident; a phrase must appear
+whole; a single word must match a whole word, so `art` matches "fan art" but
+not "ArtStation". Anything on the `mute` list is dropped outright.
+
+**Taste changes which piece represents a source, not how many slots that source
+gets.** The round-robin is untouched, so a profile sharpens the selection
+without narrowing the range. A perfect match is worth `ART_DIGEST_TASTE_WEIGHT`
+heat points (40 by default), which means something far more popular still wins
+— this stays a digest of what is popular, tuned toward you. Raise the weight if
+you would rather taste led.
+
+Every pick records what it matched, so the gallery can say why it is there.
+
+#### Teaching it
+
+The gallery is a static page with nowhere to POST to, so the ♡ on each card
+stores likes in your browser, and **Teach the digest** opens a prefilled issue
+containing them. Submitting it runs `.github/workflows/taste.yml`, which folds
+the likes into `taste.json` and closes the issue.
+
+Tags count for a full point, words from a title for half, and every weight tops
+out at 10 so one enthusiasm cannot swamp the profile. Because this repo is
+public and anyone can open an issue, the workflow only reads issues opened by
+the repository owner, and the merge takes only the fields it understands with
+every field length-capped.
+
 ### Ranking
 
 Upvotes, likes and bookmarks aren't the same currency, so each piece is scored
@@ -177,6 +215,7 @@ python3 -m http.server 8000     # then open /art-digest/
 | `ART_DIGEST_TAGS` | conceptart, characterart, dnd, fanart, digitalart | Bluesky hashtags to search |
 | `ART_DIGEST_SOURCES` | all | Comma-separated source ids to run (`artstation,reddit,pixiv,deviantart,bluesky,danbooru`) |
 | `ART_DIGEST_NSFW` | `include` | `include`, `exclude` or `only` |
+| `ART_DIGEST_TASTE_WEIGHT` | `40` | Heat points a perfect taste match is worth |
 | `ART_DIGEST_NSFW_SUBS` | unset | Subreddits whose every post should be flagged adult, added to r/rule34, r/hentai and r/ecchi |
 | `PIXIV_SESSION` | unset | A Pixiv `PHPSESSID` cookie, which unlocks the R-18 daily ranking |
 | `BLUESKY_IDENTIFIER` / `BLUESKY_APP_PASSWORD` | unset | A handle and app password, used when the public AppView refuses the request |

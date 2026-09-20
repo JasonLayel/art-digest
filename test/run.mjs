@@ -6,6 +6,7 @@
 
 import assert from 'node:assert/strict';
 import { collectInlineImages } from '../send-email.mjs';
+import { extractLikes, mergeLikes } from '../tools/merge-taste.mjs';
 import {
   normalizeReddit,
   normalizeRedditRss,
@@ -19,6 +20,9 @@ import {
   normalizeDanbooru,
   applyNsfwPolicy,
   harvestSubreddits,
+  affinityFor,
+  itemWords,
+  loadTaste,
   ADULT_SUBS,
   rankItems,
   resolveThumbnails,
@@ -99,6 +103,7 @@ test('reddit: decodes entities in titles and image URLs', () => {
   assert.equal(item.url, 'https://www.reddit.com/r/Art/comments/aaa111/neon_harbour/');
   assert.equal(item.scoreLabel, '8.4k upvotes');
   assert.equal(item.context, 'r/Art');
+  assert.deepEqual(item.tags, [], 'no flair on this post, so no tags');
 });
 
 const redditAtom = `<?xml version="1.0" encoding="UTF-8"?>
@@ -430,6 +435,10 @@ test('danbooru: titles from character and series, credits the original source', 
   assert.equal(first.artistUrl, 'https://www.pixiv.net/artworks/149478161', 'links the artist\'s own posting when known');
   assert.equal(first.url, 'https://danbooru.donmai.us/posts/7001');
   assert.equal(first.scoreLabel, 'score 312 · 640 favourites');
+  assert.ok(
+    first.tags.includes('ganyu (genshin impact)') && first.tags.includes('genshin impact'),
+    'danbooru tags come through underscore-free, ready to match against'
+  );
   assert.equal(first.nsfw, true, 'explicit is adult');
   assert.equal(second.nsfw, false, 'general is not');
   assert.equal(second.artistUrl, 'https://danbooru.donmai.us/posts?tags=solo_artist', 'falls back to the artist tag');
@@ -618,6 +627,210 @@ test('ranking: adult work is neither boosted nor penalised', () => {
     reranked.find((i) => i.id === 'sfw-top').heat,
     'the same score earns the same heat either way'
   );
+});
+
+/* ------------------------------------------------------------------ taste */
+
+const TASTE = {
+  keywords: { architecture: 3, environment: 2, 'matte painting': 2, art: 1 },
+  artists: { 'Dmitriy Kuzin': 2 },
+  contexts: { 'r/ImaginaryArchitecture': 2 },
+  mute: ['chibi'],
+};
+
+test('taste: a named artist counts for more than a matched word', () => {
+  const byWord = affinityFor({ title: 'An environment study', artist: 'nobody', context: '' }, TASTE);
+  const byArtist = affinityFor({ title: 'storm', artist: 'Dmitriy Kuzin', context: '' }, TASTE);
+  assert.ok(byArtist.score > byWord.score, 'naming an artist is deliberate; a word can be coincidence');
+  assert.deepEqual(byArtist.matched, ['Dmitriy Kuzin']);
+});
+
+test('taste: single keywords match whole words only', () => {
+  // "art" must not match "ArtStation", or every piece scores for nothing.
+  assert.deepEqual(affinityFor({ title: 'Found on ArtStation', artist: 'x', context: '' }, TASTE).matched, []);
+  assert.deepEqual(affinityFor({ title: 'Fan art, 2026', artist: 'x', context: '' }, TASTE).matched, ['art']);
+});
+
+test('taste: a phrase matches across word boundaries', () => {
+  assert.deepEqual(
+    affinityFor({ title: 'A matte painting of a valley', artist: 'x', context: '' }, TASTE).matched,
+    ['matte painting']
+  );
+});
+
+test('taste: tags and context are matchable, not just the title', () => {
+  const byTag = affinityFor({ title: 'untitled', artist: 'x', context: '', tags: ['architecture', 'night'] }, TASTE);
+  assert.deepEqual(byTag.matched, ['architecture']);
+  const byContext = affinityFor({ title: 'untitled', artist: 'x', context: 'r/ImaginaryArchitecture' }, TASTE);
+  assert.ok(byContext.matched.includes('r/ImaginaryArchitecture'));
+});
+
+test('taste: a muted term rejects the piece rather than scoring it down', () => {
+  const muted = affinityFor({ title: 'chibi knight', artist: 'x', context: '' }, TASTE);
+  assert.equal(muted.muted, true);
+  assert.equal(muted.score, 0);
+});
+
+test('taste: the score saturates, so a pile of weak matches cannot beat everything', () => {
+  const many = affinityFor(
+    { title: 'architecture environment art', artist: 'Dmitriy Kuzin', context: 'r/ImaginaryArchitecture' },
+    TASTE
+  );
+  assert.ok(many.score <= 1);
+  assert.equal(many.score, 1, 'a piece matching everything tops out at 1');
+});
+
+test('taste: an unreadable or absent profile is simply no profile', async () => {
+  const none = await loadTaste('/nonexistent-directory-for-this-test');
+  assert.deepEqual(none, { keywords: {}, artists: {}, contexts: {}, mute: [] });
+});
+
+test('taste: derived vocabulary drops noise words, while written keywords keep working', () => {
+  // itemWords feeds vocabulary learned from what you liked, so words that say
+  // nothing are dropped — including "art", which is on everything here.
+  const words = itemWords({ title: 'The art of a new OC drawing', artist: '', context: '', tags: ['brutalist'] });
+  for (const noise of ['the', 'of', 'a', 'new', 'oc', 'drawing', 'art']) {
+    assert.ok(!words.has(noise), `"${noise}" should not become learned vocabulary`);
+  }
+  assert.ok(words.has('brutalist'), 'a word that does say something survives');
+
+  // A keyword you wrote yourself is honoured regardless of that list.
+  assert.deepEqual(
+    affinityFor({ title: 'Fan art, 2026', artist: 'x', context: '' }, TASTE).matched,
+    ['art'],
+    'you meant it, so it matches'
+  );
+});
+
+test('ranking: taste picks which piece represents a source, without changing the quotas', () => {
+  const makeSourceItems = (source, rows) =>
+    rows.map(([id, value, title, context], i) => ({
+      id: `${source}-${id}`,
+      source,
+      title,
+      artist: `artist ${id}`,
+      context: context || `c${i}`,
+      url: `https://example.com/${id}`,
+      image: 'https://example.com/i.jpg',
+      thumb: 'https://example.com/t.jpg',
+      value,
+      scoreLabel: `${value}`,
+      postedAt: new Date(NOW - 3600_000).toISOString(),
+      nsfw: false,
+    }));
+
+  const bySource = {
+    reddit: makeSourceItems('reddit', [
+      ['loud', 9000, 'A very popular portrait'],
+      ['mine', 7600, 'Brutalist architecture at dusk'],
+    ]),
+    pixiv: makeSourceItems('pixiv', [['p1', 500, 'something else']]),
+  };
+
+  const plain = rankItems(bySource, { limit: 3, windowHours: 48, now: NOW });
+  assert.equal(plain[0].id, 'reddit-loud', 'without a profile, popularity leads');
+
+  const tasted = rankItems(bySource, { limit: 3, windowHours: 48, now: NOW, taste: TASTE });
+  assert.equal(tasted[0].id, 'reddit-mine', 'with one, the piece that matches represents Reddit');
+  assert.deepEqual(tasted[0].matched, ['architecture']);
+  assert.equal(
+    tasted.filter((i) => i.source === 'pixiv').length,
+    plain.filter((i) => i.source === 'pixiv').length,
+    'and the other sources keep exactly the same number of slots'
+  );
+});
+
+test('ranking: taste nudges the order, it does not overrule the crowd', () => {
+  // A deliberate ceiling. A perfect match is worth tasteWeight heat points, so
+  // something far more popular still wins — this stays a digest of what is
+  // popular, tuned toward you, rather than a feed of only your keywords.
+  const rows = (id, value, title) => ({
+    id, source: 'reddit', title, artist: 'x', context: id, value,
+    url: `https://e.com/${id}`, thumb: 't', postedAt: new Date(NOW - 3600_000).toISOString(),
+  });
+  const ranked = rankItems(
+    { reddit: [rows('runaway', 9000, 'A portrait'), rows('mine', 2000, 'Brutalist architecture')] },
+    { limit: 2, windowHours: 48, now: NOW, taste: TASTE }
+  );
+  assert.equal(ranked[0].id, 'runaway', 'a 4x popularity gap is not overturned by one keyword');
+  assert.ok(ranked[1].affinity > 0, 'but the match is still recorded on the piece');
+
+  // Turning the dial up lets taste win, for someone who wants that.
+  const louder = rankItems(
+    { reddit: [rows('runaway', 9000, 'A portrait'), rows('mine', 2000, 'Brutalist architecture')] },
+    { limit: 2, windowHours: 48, now: NOW, taste: TASTE, tasteWeight: 200 }
+  );
+  assert.equal(louder[0].id, 'mine', 'tasteWeight is the dial between the two');
+});
+
+test('ranking: muted pieces never reach the digest', () => {
+  const items = [
+    { id: 'a', source: 'reddit', title: 'chibi parade', artist: 'x', context: 'r/Art', value: 9000, postedAt: new Date(NOW).toISOString(), url: 'u', thumb: 't' },
+    { id: 'b', source: 'reddit', title: 'a quiet street', artist: 'y', context: 'r/painting', value: 10, postedAt: new Date(NOW).toISOString(), url: 'u2', thumb: 't2' },
+  ];
+  const ranked = rankItems({ reddit: items }, { limit: 5, windowHours: 48, now: NOW, taste: TASTE });
+  assert.deepEqual(ranked.map((i) => i.id), ['b'], 'the muted piece is gone even though it was the most popular');
+});
+
+/* --------------------------------------------------- learning from likes */
+
+test('likes: reads the block the gallery writes, and nothing else', () => {
+  const body = [
+    'Liked from the gallery.',
+    '```json',
+    JSON.stringify({ likes: [{ id: 'reddit:a', artist: 'u/painterly', context: 'r/Art', title: 'Brutalist tower', tags: ['architecture'] }] }),
+    '```',
+  ].join('\n');
+  const likes = extractLikes(body);
+  assert.equal(likes.length, 1);
+  assert.equal(likes[0].artist, 'u/painterly');
+  assert.deepEqual(likes[0].tags, ['architecture']);
+});
+
+test('likes: a body with no block, bad JSON, or the wrong shape yields nothing', () => {
+  assert.deepEqual(extractLikes('just a normal issue about a bug'), []);
+  assert.deepEqual(extractLikes('```json\n{not json}\n```'), []);
+  assert.deepEqual(extractLikes('```json\n{"something":"else"}\n```'), []);
+  assert.deepEqual(extractLikes(''), []);
+  assert.deepEqual(extractLikes(null), []);
+});
+
+test('likes: untrusted fields are clamped, not trusted', () => {
+  // Anyone can open an issue on a public repo, so nothing here is taken on faith.
+  const nasty = {
+    likes: [
+      { id: 'x'.repeat(5000), artist: 'y'.repeat(5000), context: 'z'.repeat(5000), title: 't'.repeat(5000), tags: Array(500).fill('tag') },
+      ...Array.from({ length: 500 }, (_, i) => ({ id: `flood${i}`, artist: `a${i}`, tags: [] })),
+    ],
+  };
+  const likes = extractLikes('```json\n' + JSON.stringify(nasty) + '\n```');
+  assert.ok(likes.length <= 200, 'the number of likes is bounded');
+  assert.ok(likes[0].artist.length <= 120, 'and so is each field');
+  assert.ok(likes[0].tags.length <= 12);
+});
+
+test('likes: merging adds weight without disturbing what was already there', () => {
+  const before = { keywords: { architecture: 3 }, artists: {}, contexts: {}, mute: ['chibi'] };
+  const after = mergeLikes(before, [
+    { id: '1', artist: 'u/painterly', context: 'r/Art', title: 'Brutalist tower at dusk', tags: ['architecture', 'concrete'] },
+    { id: '2', artist: 'u/painterly', context: 'r/Art', title: 'Another tower', tags: ['architecture'] },
+  ]);
+
+  assert.equal(after.artists.painterly, 2, 'the same artist twice counts twice, with the u/ stripped');
+  assert.equal(after.contexts['r/Art'], 2);
+  assert.equal(after.keywords.architecture, 5, 'an existing weight is added to, not replaced');
+  assert.equal(after.keywords.concrete, 1, 'one tag, one point');
+  assert.equal(after.keywords.dusk, 0.5, 'one word from a title, half a point');
+  assert.equal(after.keywords.tower, 1, 'and a word in both titles earns both halves');
+  assert.deepEqual(after.mute, ['chibi'], 'mutes are left alone');
+});
+
+test('likes: weights and profile size stay bounded however often you like something', () => {
+  const many = Array.from({ length: 60 }, (_, i) => ({ id: `n${i}`, artist: 'prolific', context: 'r/Art', title: 'x', tags: ['architecture'] }));
+  const after = mergeLikes({ keywords: {}, artists: {}, contexts: {}, mute: [] }, many);
+  assert.equal(after.artists.prolific, 10, 'a weight tops out');
+  assert.equal(after.keywords.architecture, 10);
+  assert.ok(Object.keys(after.keywords).length <= 400);
 });
 
 /* ------------------------------------------------------------ nsfw policy */

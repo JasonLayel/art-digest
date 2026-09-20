@@ -22,7 +22,7 @@
  *   REDDIT_CLIENT_ID/SECRET   use Reddit's OAuth API instead of the public JSON
  */
 
-import { mkdir, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
@@ -77,6 +77,9 @@ const CONFIG = {
     ? splitList(process.env.ART_DIGEST_TAGS)
     : ['conceptart', 'characterart', 'dnd', 'fanart', 'digitalart'],
   sources: splitList(process.env.ART_DIGEST_SOURCES),
+  // How many heat points a perfect taste match is worth. Popularity still
+  // leads on a wide gap; raise this to let taste win more often.
+  tasteWeight: int(process.env.ART_DIGEST_TASTE_WEIGHT, 40),
   adultSubs: new Set([
     ...ADULT_SUBS,
     ...splitList(process.env.ART_DIGEST_NSFW_SUBS).map((sub) => sub.toLowerCase()),
@@ -228,6 +231,7 @@ export function normalizeReddit(payload, subreddit = '', { adultSubs = ADULT_SUB
         url: `https://www.reddit.com${p.permalink}`,
         image,
         thumb,
+        tags: [p.link_flair_text].filter(Boolean).map(String),
         value: Number(p.score) || 0,
         scoreLabel: `${compact(Number(p.score) || 0)} upvotes`,
         postedAt: iso(p.created_utc),
@@ -607,6 +611,7 @@ export function normalizePixiv(payload, { pixivProxy = '', nsfwRanking = false }
         url: `https://www.pixiv.net/artworks/${p.illust_id}`,
         image: proxyThumb(big),
         thumb: proxyThumb(p.url),
+        tags: (p.tags || []).filter(Boolean).map(String),
         value: Number(p.rating_count) || 0,
         scoreLabel: `${compact(Number(p.rating_count) || 0)} bookmarks · #${p.rank} today`,
         nsfw: Boolean(nsfwRanking || p.illust_content_type?.sexual || p.illust_content_type?.grotesque),
@@ -704,6 +709,7 @@ export function normalizeDeviantArtApi(payload) {
       url: https(d.url || ''),
       image: https(pick(d.content?.src, d.preview?.src, d.thumbs?.at(-1)?.src)),
       thumb: https(pick(d.preview?.src, d.thumbs?.at(-1)?.src, d.content?.src)),
+      tags: (d.tags || []).map((t) => (typeof t === 'string' ? t : t?.tag_name)).filter(Boolean),
       value: Number(d.stats?.favourites) || 0,
       scoreLabel: `${compact(Number(d.stats?.favourites) || 0)} favourites`,
       nsfw: Boolean(d.is_mature),
@@ -790,6 +796,7 @@ export function normalizeBluesky(payload, tag = '') {
         image: https(image?.fullsize || ''),
         thumb: https(image?.thumb || image?.fullsize || ''),
         thumbFallbacks: [https(image?.fullsize || '')].filter(Boolean),
+        tags: [...text.matchAll(/#([a-z0-9_]{2,30})/gi)].map((m) => m[1]),
         value: Number(post.likeCount) || 0,
         scoreLabel: `${compact(Number(post.likeCount) || 0)} likes`,
         postedAt: post.record?.createdAt || post.indexedAt || null,
@@ -898,6 +905,13 @@ export function normalizeDanbooru(rows) {
         image: https(pick(p.large_file_url, p.file_url, p.preview_file_url)),
         thumb: https(pick(p.large_file_url, p.preview_file_url, p.file_url)),
         thumbFallbacks: [https(pick(p.preview_file_url)), https(pick(p.file_url))].filter(Boolean),
+        tags: [
+          ...(p.tag_string_character || '').split(/\s+/),
+          ...(p.tag_string_copyright || '').split(/\s+/),
+          ...(p.tag_string_general || '').split(/\s+/).slice(0, 20),
+        ]
+          .filter(Boolean)
+          .map((t) => t.replace(/_/g, ' ')),
         value: Number(p.score) || 0,
         scoreLabel: `score ${compact(Number(p.score) || 0)} · ${compact(Number(p.fav_count) || 0)} favourites`,
         postedAt: p.created_at ? new Date(p.created_at).toISOString() : null,
@@ -939,7 +953,10 @@ export const SOURCES = [
  * post, nudged by how fresh the piece is, and then the sources are interleaved
  * so one busy site can't take over the whole digest.
  */
-export function rankItems(bySource, { limit = 24, windowHours = 48, now = Date.now() } = {}) {
+export function rankItems(
+  bySource,
+  { limit = 24, windowHours = 48, now = Date.now(), taste = null, tasteWeight = 40 } = {}
+) {
   const cutoff = now - windowHours * 3600 * 1000;
 
   const ranked = new Map();
@@ -955,9 +972,21 @@ export function rankItems(bySource, { limit = 24, windowHours = 48, now = Date.n
         const popularity = Math.min(1, (item.value || 0) / max);
         const ageHours = item.postedAt ? Math.max(0, (now - Date.parse(item.postedAt)) / 3.6e6) : windowHours / 2;
         const freshness = Math.max(0, 1 - ageHours / (windowHours * 1.5));
-        return { ...item, heat: Math.round((popularity * 0.8 + freshness * 0.2) * 100) };
+        const heat = Math.round((popularity * 0.8 + freshness * 0.2) * 100);
+        if (!taste) return { ...item, heat };
+        // Taste changes which piece represents a source, not how many slots
+        // that source gets: the round-robin below is untouched, so a profile
+        // sharpens the selection without narrowing the range.
+        const { score, muted, matched } = affinityFor(item, taste);
+        return { ...item, heat, affinity: Number(score.toFixed(3)), matched, muted };
       })
-      .sort((a, b) => b.heat - a.heat || b.value - a.value);
+      .filter((item) => !item.muted)
+      .map(({ muted, ...item }) => item)
+      .sort(
+        (a, b) =>
+          b.heat + (b.affinity || 0) * tasteWeight - (a.heat + (a.affinity || 0) * tasteWeight) ||
+          b.value - a.value
+      );
     ranked.set(source, dedupe(scored));
   }
 
@@ -965,7 +994,11 @@ export function rankItems(bySource, { limit = 24, windowHours = 48, now = Date.n
   // different subreddit or hashtag each round before repeating one, so a
   // single busy corner (r/Art, say) can't fill Reddit's whole share.
   const out = [];
-  const order = [...ranked.keys()].sort((a, b) => (ranked.get(b)[0]?.heat ?? 0) - (ranked.get(a)[0]?.heat ?? 0));
+  const lead = (source) => {
+    const top = ranked.get(source)[0];
+    return top ? top.heat + (top.affinity || 0) * tasteWeight : 0;
+  };
+  const order = [...ranked.keys()].sort((a, b) => lead(b) - lead(a));
   const taken = new Map(order.map((source) => [source, new Set()]));
   const used = new Set();
 
@@ -996,6 +1029,105 @@ export function rankItems(bySource, { limit = 24, windowHours = 48, now = Date.n
     if (!added) break;
   }
   return out;
+}
+
+/* ------------------------------------------------------------------ taste */
+
+/**
+ * Words too common to say anything about what a piece is. These guard
+ * vocabulary *derived* from what you liked; a keyword you write in taste.json
+ * yourself is always matchable, because you meant it.
+ */
+const STOPWORDS = new Set(
+  ('a an and are as at be by for from has in is it its of on or that the to with my me you your this ' +
+   'oc art artwork digital drawing painting illustration new first finally wip commission me irl 2024 2025 2026')
+    .split(' ')
+);
+
+/** Everything about a piece that a taste profile could plausibly match on. */
+export function itemText(item) {
+  return [item.title, item.artist, item.context, ...(item.tags || [])]
+    .filter(Boolean)
+    .join(' ')
+    .toLowerCase();
+}
+
+export function itemWords(item) {
+  return new Set(
+    itemText(item)
+      .split(/[^a-z0-9+#]+/)
+      .filter((w) => w.length > 2 && !STOPWORDS.has(w))
+  );
+}
+
+export const EMPTY_TASTE = { keywords: {}, artists: {}, contexts: {}, mute: [] };
+
+/**
+ * How well a piece matches the profile, as 0–1 plus the reasons why.
+ *
+ * Matching an artist you have named counts for much more than matching a
+ * word, because naming an artist is a deliberate act and a word can turn up by
+ * accident. A muted term rejects the piece outright rather than scoring it
+ * down: mutes are things you said you did not want to see.
+ */
+export function affinityFor(item, taste = EMPTY_TASTE, { saturation = 6 } = {}) {
+  const text = itemText(item);
+  const matched = [];
+  let total = 0;
+
+  for (const term of taste.mute || []) {
+    if (term && text.includes(String(term).toLowerCase())) {
+      return { score: 0, muted: true, matched: [`muted: ${term}`] };
+    }
+  }
+
+  const artist = String(item.artist || '').toLowerCase().replace(/^u\//, '');
+  for (const [name, weight] of Object.entries(taste.artists || {})) {
+    const known = name.toLowerCase();
+    if (known && (artist === known || artist.includes(known))) {
+      total += (Number(weight) || 1) * 3;
+      matched.push(name);
+    }
+  }
+
+  for (const [context, weight] of Object.entries(taste.contexts || {})) {
+    if (context && String(item.context || '').toLowerCase() === context.toLowerCase()) {
+      total += (Number(weight) || 1) * 1.5;
+      matched.push(context);
+    }
+  }
+
+  for (const [keyword, weight] of Object.entries(taste.keywords || {})) {
+    const term = String(keyword).toLowerCase();
+    if (!term) continue;
+    // A phrase has to appear as one; a single word has to be a whole word, so
+    // "art" matches "fan art" but not "artstation".
+    const hit = term.includes(' ')
+      ? text.includes(term)
+      : new RegExp(`(^|[^a-z0-9])${term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}([^a-z0-9]|$)`).test(text);
+    if (hit) {
+      total += Number(weight) || 1;
+      matched.push(keyword);
+    }
+  }
+
+  return { score: Math.min(1, total / saturation), muted: false, matched };
+}
+
+/** Reads taste.json if it is there; an absent or broken profile is simply no profile. */
+export async function loadTaste(dir) {
+  try {
+    const raw = await readFile(join(dir, 'taste.json'), 'utf8');
+    const parsed = JSON.parse(raw);
+    return {
+      keywords: parsed.keywords || {},
+      artists: parsed.artists || {},
+      contexts: parsed.contexts || {},
+      mute: Array.isArray(parsed.mute) ? parsed.mute : [],
+    };
+  } catch {
+    return { ...EMPTY_TASTE };
+  }
 }
 
 /* -------------------------------------------------------------- thumbnails */
@@ -1264,8 +1396,16 @@ export async function buildDigest(cfg = CONFIG) {
     }
   });
 
+  const taste = await loadTaste(HERE);
+  const tasteTerms =
+    Object.keys(taste.keywords).length + Object.keys(taste.artists).length + Object.keys(taste.contexts).length;
   const items = await resolveThumbnails(
-    rankItems(bySource, { limit: cfg.limit, windowHours: cfg.windowHours })
+    rankItems(bySource, {
+      limit: cfg.limit,
+      windowHours: cfg.windowHours,
+      taste: tasteTerms ? taste : null,
+      tasteWeight: cfg.tasteWeight,
+    })
   );
   const unverified = items.filter((item) => item.thumbVerified === false).length;
   const missing = items.filter((item) => !item.thumb).length;
@@ -1278,6 +1418,11 @@ export async function buildDigest(cfg = CONFIG) {
     totalCollected: Object.values(bySource).reduce((n, list) => n + list.length, 0),
     nsfwPolicy: cfg.nsfw,
     nsfwCount: items.filter((item) => item.nsfw).length,
+    taste: {
+      terms: tasteTerms,
+      muted: taste.mute.length,
+      matchedPicks: items.filter((item) => (item.matched || []).length).length,
+    },
     sourceLabels: Object.fromEntries(sources.map((s) => [s.id, s.label])),
     sources: report,
     items,

@@ -1,0 +1,66 @@
+# Folds hearts from the gallery into taste.json.
+#
+# The gallery is a static page with nowhere to POST to, so it hands you a
+# prefilled issue instead. This repo is public and anyone can open an issue, so
+# only the owner's issues are read — and the merge itself takes only the fields
+# it understands, with bounded weights.
+name: Learn from likes
+
+on:
+  issues:
+    types: [opened, edited]
+
+permissions:
+  contents: write
+  issues: write
+
+jobs:
+  merge:
+    if: github.event.issue.user.login == github.repository_owner
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Read the likes out of the issue
+        env:
+          ISSUE_BODY: ${{ github.event.issue.body }}
+        run: |
+          set -euo pipefail
+          # Through a file and an env var, never interpolated into the shell.
+          printf '%s' "$ISSUE_BODY" > "${RUNNER_TEMP}/issue-body.md"
+          node tools/merge-taste.mjs "${RUNNER_TEMP}/issue-body.md" taste.json | tee "${RUNNER_TEMP}/result.txt"
+
+      - name: Commit the profile
+        run: |
+          set -euo pipefail
+          if [ -z "$(git status --porcelain -- taste.json)" ]; then
+            echo 'Nothing new in this one.'
+            exit 0
+          fi
+          git config user.name 'art-digest'
+          git config user.email 'github-actions[bot]@users.noreply.github.com'
+          git add taste.json
+          git commit -m "Taste: learn from issue #${{ github.event.issue.number }}"
+          git push origin "HEAD:${{ github.event.repository.default_branch }}"
+
+      - name: Say what happened
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          body="$(cat "${RUNNER_TEMP}/result.txt")"
+          curl -sS -X POST \
+            -H "Authorization: Bearer ${GH_TOKEN}" \
+            -H 'Accept: application/vnd.github+json' \
+            -H 'Content-Type: application/json' \
+            "https://api.github.com/repos/${{ github.repository }}/issues/${{ github.event.issue.number }}/comments" \
+            -d "$(node -e 'console.log(JSON.stringify({body: process.argv[1] + "\n\nTomorrows digest will use it."}))' "$body")" > /dev/null
+          curl -sS -X PATCH \
+            -H "Authorization: Bearer ${GH_TOKEN}" \
+            -H 'Accept: application/vnd.github+json' \
+            -H 'Content-Type: application/json' \
+            "https://api.github.com/repos/${{ github.repository }}/issues/${{ github.event.issue.number }}" \
+            -d '{"state":"closed"}' > /dev/null

@@ -5,6 +5,8 @@
 
   const FEED_URL = 'data/latest.json';
   const PREFS_KEY = 'artDigest.prefs';
+  const LIKES_KEY = 'artDigest.likes';
+  const REPO = 'JasonLayel/art-digest';
   // Used only by the live top-up below; the real collection happens in CI.
   const LIVE_SUBS = 'Art+DigitalArt+ImaginaryLandscapes+ImaginaryCharacters+ConceptArt';
   const STALE_AFTER_HOURS = 36;
@@ -32,7 +34,63 @@
     sort: 'heat',
     rating: 'all', // all | sfw | nsfw
     blur: false,
+    likes: [], // pieces you hearted, kept here until you send them to the repo
   };
+
+  function loadLikes() {
+    try {
+      const saved = JSON.parse(localStorage.getItem(LIKES_KEY) || '[]');
+      if (Array.isArray(saved)) state.likes = saved.slice(0, 200);
+    } catch {
+      /* blocked storage just means no likes yet */
+    }
+  }
+
+  function saveLikes() {
+    try {
+      localStorage.setItem(LIKES_KEY, JSON.stringify(state.likes));
+    } catch {
+      /* nothing to do; the hearts simply will not persist */
+    }
+  }
+
+  const isLiked = (item) => state.likes.some((like) => like.id === item.id);
+
+  function toggleLike(item) {
+    if (isLiked(item)) {
+      state.likes = state.likes.filter((like) => like.id !== item.id);
+    } else {
+      // Keep only what a taste profile can use, not the whole card.
+      state.likes.push({
+        id: item.id,
+        artist: item.artist || '',
+        context: item.context || '',
+        title: item.title || '',
+        tags: (item.tags || []).slice(0, 12),
+      });
+    }
+    saveLikes();
+  }
+
+  /**
+   * The gallery is a static page with nowhere to POST to, so sending taste
+   * back to the collector is a prefilled issue: one tap to open, one to submit,
+   * and a workflow merges it into taste.json.
+   */
+  function likesIssueUrl() {
+    const body = [
+      'Liked from the gallery. The workflow reads the block below.',
+      '',
+      '```json',
+      JSON.stringify({ likes: state.likes }, null, 2),
+      '```',
+    ].join('\n');
+    return (
+      `https://github.com/${REPO}/issues/new?labels=taste` +
+      `&title=${encodeURIComponent(`taste: ${state.likes.length} liked`)}` +
+      `&body=${encodeURIComponent(body)}`
+    );
+  }
 
   /* ------------------------------------------------------------- helpers */
 
@@ -80,6 +138,36 @@
     renderRatingFilter();
     renderGrid();
     renderSources();
+    renderLikeBar();
+  }
+
+  function renderLikeBar() {
+    const bar = $('likes');
+    bar.textContent = '';
+    if (!state.likes.length) {
+      bar.classList.add('hidden');
+      return;
+    }
+    bar.classList.remove('hidden');
+    bar.append(el('span', 'like-count', `${state.likes.length} liked`));
+
+    const send = el('a', 'chip is-on');
+    send.href = likesIssueUrl();
+    send.target = '_blank';
+    send.rel = 'noopener noreferrer';
+    send.textContent = 'Teach the digest →';
+    send.title = 'Opens a prefilled issue; submitting it updates taste.json';
+    bar.append(send);
+
+    const clear = el('button', 'chip');
+    clear.type = 'button';
+    clear.textContent = 'Clear';
+    clear.addEventListener('click', () => {
+      state.likes = [];
+      saveLikes();
+      render();
+    });
+    bar.append(clear);
   }
 
   function visibleItems() {
@@ -256,10 +344,33 @@
       body.append(artist);
     }
 
+    if ((item.matched || []).length) {
+      const why = el('p', 'matched', `matched ${item.matched.slice(0, 3).join(', ')}`);
+      why.title = 'Why your profile pulled this one in';
+      body.append(why);
+    }
+
     const stats = el('div', 'stats');
     stats.append(el('span', null, item.scoreLabel || ''));
     stats.append(el('span', null, timeAgo(item.postedAt)));
     body.append(stats);
+
+    const heart = el('button', 'heart');
+    heart.type = 'button';
+    heart.textContent = isLiked(item) ? '♥' : '♡';
+    heart.title = 'More like this';
+    heart.setAttribute('aria-label', `More like ${item.title}`);
+    heart.setAttribute('aria-pressed', String(isLiked(item)));
+    heart.addEventListener('click', (event) => {
+      event.preventDefault();
+      toggleLike(item);
+      heart.textContent = isLiked(item) ? '♥' : '♡';
+      heart.setAttribute('aria-pressed', String(isLiked(item)));
+      card.classList.toggle('is-liked', isLiked(item));
+      renderLikeBar();
+    });
+    if (isLiked(item)) card.classList.add('is-liked');
+    card.append(heart);
 
     card.append(body);
     return card;
@@ -403,6 +514,7 @@
   /* --------------------------------------------------------------- init */
 
   loadPrefs();
+  loadLikes();
   document.querySelectorAll('.sort-chip').forEach((chip) => {
     chip.classList.toggle('is-on', chip.dataset.sort === state.sort);
     chip.addEventListener('click', () => {

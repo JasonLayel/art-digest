@@ -1,0 +1,33 @@
+{
+  "_comment": "What the digest leans toward. Edit freely: keywords and artists are weights (higher counts for more), mute rejects a piece outright. The gallery's heart button can append to this via an issue.",
+  "keywords": {
+    "architecture": 3,
+    "architectural": 2,
+    "environment": 3,
+    "environments": 2,
+    "cityscape": 2,
+    "interior": 2,
+    "visualization": 2,
+    "concept": 2,
+    "landscape": 2,
+    "brutalist": 2,
+    "cathedral": 1,
+    "atmosphere": 1,
+    "atmospheric": 1,
+    "moody": 1,
+    "lighting": 1,
+    "matte painting": 2,
+    "virtual reality": 2,
+    "design": 1
+  },
+  "artists": {
+    "Dmitriy Kuzin": 2
+  },
+  "contexts": {
+    "r/ImaginaryArchitecture": 2,
+    "r/ImaginaryCityscapes": 2,
+    "r/ImaginaryLandscapes": 1,
+    "r/ConceptArt": 1
+  },
+  "mute": []
+}
