@@ -58,8 +58,19 @@ const count = (values) => {
   return [...tally.entries()].sort((a, b) => b[1] - a[1]);
 };
 
+// ArtStation's global trending feed is mostly character art. Its channels are
+// where environment and architectural work lives, so the question is which of
+// these the API will actually serve.
+const CHANNELS = ['environment-concept-art', 'architectural-visualization', 'concept-art', 'industrial-design'];
+
 const results = [];
 for (const [label, url, options] of [
+  ...CHANNELS.flatMap((slug) => [
+    [`channel ${slug} (v2)`, `https://www.artstation.com/api/v2/community/channels/${slug}/projects.json?page=1&per_page=50`, { browserish: true }],
+    [`explore ?channel=${slug}`, `https://www.artstation.com/api/v2/community/explore/projects/trending.json?page=1&dimension=all&per_page=50&channel=${slug}`, { browserish: true }],
+  ]),
+  ['explore ?medium=environment', 'https://www.artstation.com/api/v2/community/explore/projects/trending.json?page=1&dimension=all&per_page=50&medium=environment', { browserish: true }],
+  ['search: architecture', 'https://www.artstation.com/api/v2/search/projects.json?query=architecture&page=1&per_page=50', { browserish: true }],
   // Control: the endpoint the collector already uses every day. If this
   // answers while /users/ paths refuse, the block is on the path, not on us.
   ['CONTROL explore/trending', 'https://www.artstation.com/api/v2/community/explore/projects/trending.json?page=1&dimension=all&per_page=50', {}],
