@@ -45,7 +45,9 @@ async function probe(label, url, { browserish = false } = {}) {
     const type = (res.headers.get('content-type') || '').split(';')[0];
     if (!res.ok) return { label, url, status: res.status, type, ok: false };
     if (!type.includes('json')) return { label, url, status: res.status, type, ok: false, note: 'not JSON' };
-    return { label, url, status: res.status, type, ok: true, body: await res.json() };
+    const body = await res.json();
+    // The search endpoint nests its rows one level deeper.
+    return { label, url, status: res.status, type, ok: true, body: body?.data ? body : { ...body, data: body?.results ?? body?.data } };
   } catch (err) {
     return { label, url, status: 'error', type: '', ok: false, note: err.message.slice(0, 60) };
   }
@@ -91,6 +93,28 @@ for (const r of results) {
   const list = r.ok ? rows(r.body) : [];
   const total = r.ok ? (r.body?.total_count ?? r.body?.total ?? '') : '';
   out.push(`| ${r.label} | ${r.ok ? '✅ ' + r.status : '❌ ' + r.status + (r.note ? ` (${r.note})` : '')} | ${r.ok ? list.length : '—'} | ${total} |`);
+}
+
+// A 200 with 50 rows proves nothing on its own: an API that ignores an unknown
+// parameter answers exactly the same way. The question is whether the rows
+// differ from the unfiltered feed, and from each other.
+const idsOf = (r) => new Set((r?.body?.data ?? []).map((p) => p.hash_id || p.id).filter(Boolean));
+const controlRow = results.find((r) => r.label.startsWith('CONTROL'));
+const filtered = results.filter((r) => r.ok && /channel |medium=|search:/.test(r.label));
+if (controlRow?.ok && filtered.length) {
+  const control = idsOf(controlRow);
+  out.push('', '### Do the filters actually filter?', '', '| feed | rows | shared with trending | verdict |', '|---|---|---|---|');
+  for (const r of filtered) {
+    const ids = idsOf(r);
+    const shared = [...ids].filter((id) => control.has(id)).length;
+    const verdict = ids.size === 0 ? 'empty' : shared === ids.size ? '**ignored — same as trending**' : shared === 0 ? 'filters' : `partly (${shared} overlap)`;
+    out.push(`| ${r.label} | ${ids.size} | ${shared} | ${verdict} |`);
+  }
+  const [a, b] = filtered;
+  if (a && b) {
+    const overlap = [...idsOf(a)].filter((id) => idsOf(b).has(id)).length;
+    out.push('', `- two different channels share **${overlap}** of their rows${overlap === 50 ? ' — which would mean the parameter does nothing' : ''}`);
+  }
 }
 
 out.push('', process.env.ARTSTATION_COOKIE ? '_Probed with a session cookie._' : '_Probed anonymously (no ARTSTATION_COOKIE set)._');
