@@ -165,10 +165,22 @@ hash_id, hide_as_adult, icons, id, is_highlighted,
 small_square_cover_url, smaller_square_cover_url, title, url, user
 ```
 
-No upload date, no like count, no view count. A project's own page would carry
-them, but `/projects/<hash>.json` answers 403 the way every non-API path does,
-and there is no v2 equivalent — the closest guess 500s. So an ArtStation piece
-can be ranked by where the site itself puts it, and by nothing else.
+No upload date, no like count, no view count. Six routes to a date have been
+tried and all six are closed:
+
+| route | result |
+| --- | --- |
+| `explore/projects/trending.json` | serves, no date field |
+| `explore/projects/latest.json` | serves, no date field |
+| `search/projects.json` | serves, no date field |
+| `/projects/<hash>.json` | 403 |
+| `api/v2/…/explore/projects/<hash>.json` | 500 |
+| `/artwork/<hash>` as HTML (JSON-LD, og:, article:published_time) | 403, 12 of 12 |
+
+The last one is the telling one: the page a person opens in a browser is gated
+the same way the project JSON is, so this is not an API oversight — ArtStation
+does not serve dates to anyone it does not recognise. An ArtStation piece can
+be ranked by where the site itself puts it, and by nothing else.
 
 Its `channel` and `medium` parameters are decoration: every channel returns the
 unfiltered trending feed verbatim, and two different channels return identical
