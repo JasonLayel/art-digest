@@ -1,7 +1,7 @@
 {
-  "generatedAt": "2026-09-20T17:23:26.802Z",
+  "generatedAt": "2026-09-20T17:29:23.907Z",
   "windowHours": 48,
-  "totalCollected": 426,
+  "totalCollected": 421,
   "nsfwPolicy": "include",
   "nsfwCount": 10,
   "taste": {
@@ -15,8 +15,7 @@
     "pixiv": "Pixiv",
     "deviantart": "DeviantArt",
     "bluesky": "Bluesky",
-    "danbooru": "Danbooru",
-    "artsearch": "Your subjects"
+    "danbooru": "Danbooru"
   },
   "sources": [
     {
@@ -36,9 +35,9 @@
       "home": "https://www.reddit.com",
       "status": "ok",
       "fetched": 400,
-      "kept": 276,
-      "note": "via atom feed · 14 requests · dropped r/ecchi (unreachable (429)), r/FanArt (unreachable (429)), r/ImaginaryCharacters (unreachable (429)), r/ImaginaryMonsters (unreachable (429))",
-      "nsfw": 86,
+      "kept": 271,
+      "note": "via atom feed · 19 requests · dropped r/ecchi (unreachable (429)), r/DungeonsAndDragons (unreachable (429)), r/Pathfinder_RPG (unreachable (429)), r/FanArt (unreachable (429)), r/ImaginaryCharacters (unreachable (429)), r/ImaginaryMonsters (unreachable (429))",
+      "nsfw": 85,
       "error": null
     },
     {
@@ -82,46 +81,6 @@
       "note": "",
       "nsfw": 41,
       "error": null
-    },
-    {
-      "id": "artsearch",
-      "label": "Your subjects",
-      "home": "https://www.artstation.com",
-      "status": "changed",
-      "fetched": 200,
-      "kept": 0,
-      "note": "4 queries: architectural visualization, environment design, concept art, interior design · 200 undated results dropped as unprovable age",
-      "nsfw": 0,
-      "error": "returned 200 rows, none usable — the response shape changed",
-      "sample": {
-        "id": 11641439,
-        "hash_id": "g801wP",
-        "url": "https://www.artstation.com/artwork/g801wP",
-        "smaller_square_cover_url": "https://cdna.artstation.com/p/assets/covers/images/044/472/574/smaller_square/go…",
-        "hide_as_adult": false,
-        "is_adult_content": false,
-        "title": "Architectural visualizations",
-        "icons": {
-          "video": false,
-          "image": true,
-          "model3d": false,
-          "marmoset": false,
-          "pano": false,
-          "multiple_images": true,
-          "video_clip": false
-        },
-        "user": {
-          "id": 4494404,
-          "username": "gduque",
-          "medium_avatar_url": "https://cdna.artstation.com/p/users/avatars/004/494/404/medium/f4d39f07254da09e7…",
-          "is_staff": false,
-          "pro_member": false,
-          "is_plus_member": false,
-          "is_studio_account": false,
-          "is_school_account": false,
-          "full_name": "Gonzalo Duque"
-        }
-      }
     }
   ],
   "items": [
@@ -246,19 +205,19 @@
       "matched": []
     },
     {
-      "id": "reddit:1wlefjw",
+      "id": "reddit:1wli9fm",
       "source": "reddit",
-      "title": "Corazon del Paraiso 8, Anna Leone , acrylic on linen, 2021",
-      "artist": "u/Tokyono",
-      "artistUrl": "https://www.reddit.com/user/Tokyono",
-      "url": "https://www.reddit.com/r/Art/comments/1wlefjw/corazon_del_paraiso_8_anna_leone_acrylic_on_linen/",
-      "image": "https://preview.redd.it/darbkwnxsnqh1.jpeg?width=640&crop=smart&auto=webp&s=e8bd01eaeebdd8bb162595aa5f9f7252a39f9eb0",
-      "thumb": "https://preview.redd.it/darbkwnxsnqh1.jpeg?width=640&crop=smart&auto=webp&s=e8bd01eaeebdd8bb162595aa5f9f7252a39f9eb0",
+      "title": "Raptors APC (Tracked Impulsor kitbash + full interior)",
+      "artist": "u/Everything_Borrowed",
+      "artistUrl": "https://www.reddit.com/user/Everything_Borrowed",
+      "url": "https://www.reddit.com/r/Warhammer40k/comments/1wli9fm/raptors_apc_tracked_impulsor_kitbash_full_interior/",
+      "image": "https://preview.redd.it/i5ta3khlooqh1.jpg?width=140&height=104&auto=webp&s=dec2a74b4291d4db8783ab792cf45c016f7bb45e",
+      "thumb": "https://preview.redd.it/i5ta3khlooqh1.jpg?width=140&height=104&auto=webp&s=dec2a74b4291d4db8783ab792cf45c016f7bb45e",
       "value": 99,
-      "scoreLabel": "#2 top today in r/Art",
+      "scoreLabel": "#2 top today in r/Warhammer40k",
       "nsfw": false,
-      "postedAt": "2026-09-20T11:19:11.000Z",
-      "context": "r/Art",
+      "postedAt": "2026-09-20T14:17:00.000Z",
+      "context": "r/Warhammer40k",
       "heat": 98,
       "dateKnown": true,
       "affinity": 0,
@@ -325,8 +284,8 @@
         "multicolored hair",
         "necklace"
       ],
-      "value": 330,
-      "scoreLabel": "score 330 · 304 favourites",
+      "value": 331,
+      "scoreLabel": "score 331 · 304 favourites",
       "postedAt": "2026-09-19T18:30:54.199Z",
       "nsfw": true,
       "context": "genshin impact",
@@ -362,20 +321,20 @@
       "matched": []
     },
     {
-      "id": "reddit:1wli9fm",
+      "id": "reddit:1wlefjw",
       "source": "reddit",
-      "title": "Raptors APC (Tracked Impulsor kitbash + full interior)",
-      "artist": "u/Everything_Borrowed",
-      "artistUrl": "https://www.reddit.com/user/Everything_Borrowed",
-      "url": "https://www.reddit.com/r/Warhammer40k/comments/1wli9fm/raptors_apc_tracked_impulsor_kitbash_full_interior/",
-      "image": "https://preview.redd.it/i5ta3khlooqh1.jpg?width=140&height=104&auto=webp&s=dec2a74b4291d4db8783ab792cf45c016f7bb45e",
-      "thumb": "https://preview.redd.it/i5ta3khlooqh1.jpg?width=140&height=104&auto=webp&s=dec2a74b4291d4db8783ab792cf45c016f7bb45e",
+      "title": "Corazon del Paraiso 8, Anna Leone , acrylic on linen, 2021",
+      "artist": "u/Tokyono",
+      "artistUrl": "https://www.reddit.com/user/Tokyono",
+      "url": "https://www.reddit.com/r/Art/comments/1wlefjw/corazon_del_paraiso_8_anna_leone_acrylic_on_linen/",
+      "image": "https://preview.redd.it/darbkwnxsnqh1.jpeg?width=640&crop=smart&auto=webp&s=e8bd01eaeebdd8bb162595aa5f9f7252a39f9eb0",
+      "thumb": "https://preview.redd.it/darbkwnxsnqh1.jpeg?width=640&crop=smart&auto=webp&s=e8bd01eaeebdd8bb162595aa5f9f7252a39f9eb0",
       "value": 99,
-      "scoreLabel": "#2 top today in r/Warhammer40k",
+      "scoreLabel": "#2 top today in r/Art",
       "nsfw": false,
-      "postedAt": "2026-09-20T14:17:00.000Z",
-      "context": "r/Warhammer40k",
-      "heat": 98,
+      "postedAt": "2026-09-20T11:19:11.000Z",
+      "context": "r/Art",
+      "heat": 97,
       "dateKnown": true,
       "affinity": 0,
       "matched": []
@@ -447,8 +406,8 @@
         "pussy",
         "rabbit ears"
       ],
-      "value": 304,
-      "scoreLabel": "score 304 · 288 favourites",
+      "value": 305,
+      "scoreLabel": "score 305 · 289 favourites",
       "postedAt": "2026-09-20T01:24:46.915Z",
       "nsfw": true,
       "context": "goddess of victory: nikke",
@@ -569,8 +528,8 @@
         "looking down",
         "low twin braids"
       ],
-      "value": 276,
-      "scoreLabel": "score 276 · 251 favourites",
+      "value": 277,
+      "scoreLabel": "score 277 · 251 favourites",
       "postedAt": "2026-09-19T18:04:00.113Z",
       "nsfw": true,
       "context": "elden ring",
