@@ -151,7 +151,7 @@ if (likes?.ok) {
   out.push(`- software present: ${soft.length ? soft.slice(0, 6).map(([n, c]) => `${n} (${c})`).join(', ') : '_none in this payload_'}`);
   out.push(`- free tags present: ${tags.length ? `${tags.length} distinct` : '_none in this payload_'}`);
 
-  // One project detail page, to see whether tags live there instead.
+  // (unused branch retained below)
   const hash = list[0]?.hash_id;
   if (hash) {
     const detail = await probe('project detail', `https://www.artstation.com/projects/${hash}.json`);
