@@ -10,7 +10,7 @@ on:
         required: false
         default: 'jasonlayel'
       pinterest_user:
-        description: 'Pinterest username to probe (blank to skip)'
+        description: 'Pinterest username, profile URL or pin.it link (blank to skip)'
         required: false
         default: ''
       pinterest_board:

@@ -13,10 +13,10 @@
  * anyone can read.
  */
 
-const user = process.argv[2];
-const board = process.argv[3];
-if (!user) {
-  console.error('usage: node tools/probe-pinterest.mjs <username> [board-slug]');
+const target = process.argv[2];
+let board = process.argv[3];
+if (!target) {
+  console.error('usage: node tools/probe-pinterest.mjs <username | profile url | pin.it link> [board-slug]');
   process.exit(2);
 }
 
@@ -38,6 +38,62 @@ async function probe(label, url, accept = 'application/rss+xml,text/xml,*/*') {
   }
 }
 
+/** Follows a short link by hand so the whole chain is visible, not just its end. */
+async function resolve(url, hops = 6) {
+  const chain = [];
+  let next = url;
+  for (let i = 0; i < hops; i++) {
+    let res;
+    try {
+      res = await fetch(next, {
+        headers: { 'User-Agent': UA, Accept: 'text/html,*/*', 'Accept-Language': 'en-US,en;q=0.9' },
+        redirect: 'manual',
+        signal: AbortSignal.timeout(20_000),
+      });
+    } catch (err) {
+      chain.push(`${next} → error: ${err.message.slice(0, 50)}`);
+      break;
+    }
+    const location = res.headers.get('location');
+    chain.push(`${res.status} ${next}`);
+    if (!location) break;
+    next = new URL(location, next).toString();
+  }
+  return { final: next, chain };
+}
+
+const preamble = [];
+let user = target;
+
+if (/^https?:\/\//i.test(target)) {
+  const { final, chain } = await resolve(target);
+  preamble.push('### Where the link goes', '', '```', ...chain, `final: ${final}`, '```', '');
+  const url = new URL(final);
+  const parts = url.pathname.split('/').filter(Boolean);
+  if (parts[0] === 'pin') {
+    // A pin URL names no profile; the page's embedded state does.
+    preamble.push(`_That resolves to a single pin (${parts[1]}), not a profile._`, '');
+    const page = await fetch(final, { headers: { 'User-Agent': UA, Accept: 'text/html' }, signal: AbortSignal.timeout(20_000) })
+      .then((r) => (r.ok ? r.text() : ''))
+      .catch(() => '');
+    const owner = (page.match(/"pinner"[\s\S]{0,400}?"username"\s*:\s*"([^"]+)"/) ||
+      page.match(/"username"\s*:\s*"([^"]+)"/) || [])[1];
+    const boardSlug = (page.match(/"board"[\s\S]{0,600}?"url"\s*:\s*"\/([^/]+)\/([^/"]+)\//) || []);
+    if (owner) {
+      user = owner;
+      preamble.push(`_Pinner in the page data: \`${owner}\`_`, '');
+    }
+    if (!board && boardSlug[2]) {
+      board = boardSlug[2];
+      preamble.push(`_Board in the page data: \`${boardSlug[2]}\`_`, '');
+    }
+    if (!owner) preamble.push('_No pinner found in the page — Pinterest may be serving a login wall to this runner._', '');
+  } else if (parts.length) {
+    user = parts[0];
+    if (!board && parts[1]) board = parts[1];
+  }
+}
+
 const results = [];
 const targets = [
   ['profile feed (rss)', `https://www.pinterest.com/${user}/feed.rss`],
@@ -50,7 +106,7 @@ for (const [label, url, accept] of targets) {
   await new Promise((r) => setTimeout(r, 1500));
 }
 
-const out = [`## Pinterest probe — \`${user}\``, '', '| endpoint | status | type | bytes |', '|---|---|---|---|'];
+const out = [`## Pinterest probe — \`${user}\``, '', ...preamble, '| endpoint | status | type | bytes |', '|---|---|---|---|'];
 for (const r of results) {
   out.push(`| ${r.label} | ${r.ok ? '✅ ' + r.status : '❌ ' + r.status + (r.note ? ` (${r.note})` : '')} | ${r.type || '—'} | ${r.body.length || '—'} |`);
 }
