@@ -9,6 +9,10 @@ on:
         description: 'ArtStation username to probe (blank to skip)'
         required: false
         default: 'jasonlayel'
+      artstation_churn:
+        description: 'Sample the latest feed twice to see whether it moves (slow)'
+        required: false
+        default: 'false'
       pinterest_user:
         description: 'Pinterest username, profile URL or pin.it link (blank to skip)'
         required: false
@@ -33,6 +37,10 @@ jobs:
           # requests, the way PIXIV_SESSION does for Pixiv.
           ARTSTATION_COOKIE: ${{ secrets.ARTSTATION_COOKIE }}
         run: node tools/probe-artstation.mjs "${{ inputs.artstation_user }}"
+
+      - name: Is ArtStation's latest feed ordered by upload?
+        if: inputs.artstation_churn == 'true'
+        run: node tools/probe-artstation-churn.mjs
 
       - name: Probe Pinterest
         if: inputs.pinterest_user != ''
