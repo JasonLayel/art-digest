@@ -570,6 +570,15 @@ export function normalizeArtStation(payload) {
         scoreLabel: hasLikes ? `${compact(likes)} likes` : `#${index + 1} trending`,
         nsfw: Boolean(p.adult_content || p.hide_as_adult),
         postedAt: p.published_at ? new Date(p.published_at).toISOString() : null,
+        // ArtStation serves no dates to anyone it does not recognise — six
+        // routes checked, including the artwork page a person opens, which
+        // answers 403. But a trending feed is an observation about now: the
+        // six pieces picked from it were different every day across five days
+        // of archive, while its top fifty held still over 150 seconds. It
+        // turns over daily, so membership dates it about as well as a
+        // timestamp would. Say where that credit comes from, so no other
+        // undated source quietly inherits it.
+        freshBy: 'feed',
         context: 'Trending',
       };
     })
@@ -996,14 +1005,19 @@ export function rankItems(
     const scored = fresh
       .map((item) => {
         const popularity = Math.min(1, (item.value || 0) / max);
-        // An undated item used to be handed the age of a piece halfway through
-        // the window — worth thirteen points of heat it had not earned, which
-        // is how ArtStation came to occupy the top of every digest on a number
-        // nobody had measured. Score what is known (the source's own ranking)
-        // and award nothing for what is not.
+        // Every undated item used to be handed the age of a piece halfway
+        // through the window, whatever it was and wherever it came from. That
+        // is how an eleven-year-old search result scored 93. Freshness is now
+        // paid on evidence: a timestamp, or a feed that replaces its contents
+        // daily and therefore places its own members within about a day.
+        // Anything else earns nothing.
         const dateKnown = Boolean(item.postedAt) && Number.isFinite(Date.parse(item.postedAt));
-        const ageHours = dateKnown ? Math.max(0, (now - Date.parse(item.postedAt)) / 3.6e6) : 0;
-        const freshness = dateKnown ? Math.max(0, 1 - ageHours / (windowHours * 1.5)) : 0;
+        const ageHours = dateKnown
+          ? Math.max(0, (now - Date.parse(item.postedAt)) / 3.6e6)
+          : item.freshBy === 'feed'
+            ? 24
+            : Infinity;
+        const freshness = Number.isFinite(ageHours) ? Math.max(0, 1 - ageHours / (windowHours * 1.5)) : 0;
         const heat = Math.round((popularity * 0.8 + freshness * 0.2) * 100);
         if (!taste) return { ...item, heat, dateKnown };
         // Taste changes which piece represents a source, not how many slots

@@ -249,18 +249,30 @@ against the top piece *of its own source* (80%) plus a freshness bonus (20%),
 giving a 0–100 "heat". The final list is then filled round-robin across the
 sources so one busy site can't take over the digest.
 
-**Freshness is only paid to work that can prove its age.** Anything older than
-the 48-hour window is dropped outright. An item with no timestamp is kept — a
-feed of what is trending or top-of-the-day is current even when it doesn't say
-so, and dropping them would silence ArtStation entirely — but it scores zero on
-freshness rather than being handed the age of a piece halfway through the
-window. That invented age used to be worth 13 points, which was enough to seat
-ArtStation's six undated picks at the top of every digest (93, 92, 90…) on a
-number nobody had measured. They now score 80 at best, and anything that can
-show it is new outranks them.
+**Freshness is paid on evidence.** Anything dated older than the 48-hour window
+is dropped outright. Everything else falls into one of three cases:
 
-Round-robin is untouched by this: every source still gets the same share of the
-24 slots. The change is only to what a pick may claim about itself.
+- **It has a timestamp.** Scored on its actual age.
+- **It has no timestamp but comes from a feed that turns over daily** —
+  ArtStation trending is the only one — and is scored as roughly a day old.
+  Membership in today's trending feed is itself an observation about now: the
+  six pieces picked from it were different every single day across five days of
+  archive, while its top fifty held still over 150 seconds. It turns over daily,
+  so being in it dates a piece about as well as a timestamp would. Items say so
+  with `freshBy: 'feed'`, so no other undated source can quietly inherit the
+  credit.
+- **Neither.** Scored on popularity alone, no freshness at all.
+
+That third case used to be the only case: *every* undated item was handed the
+age of a piece halfway through the window. That is how an eleven-year-old
+ArtStation search result scored 93 and landed sixth.
+
+Cards from the second case still read **date unknown**, because that is true —
+the credit is for the feed's behaviour, not for knowing when the piece was
+made.
+
+Round-robin is untouched by any of this: every source still gets the same share
+of the 24 slots. This only governs what a pick may claim about itself.
 
 ## Running it yourself
 

@@ -904,18 +904,33 @@ test('ranking: keeps undated items (the source ordered them for us)', () => {
   assert.equal(ranked.length, 3);
 });
 
-test('ranking: an undated item is scored on popularity alone', () => {
-  // Handing it a made-up age was worth 13 points, which seated ArtStation at
-  // the top of the digest on a number nobody had measured.
-  const [undated] = makeItems('artstation', 1, 50).map((i) => ({ ...i, postedAt: null }));
+test('ranking: freshness is paid on evidence, not on the absence of a date', () => {
+  // An undated search result scored 93 by being handed the age of a piece
+  // halfway through the window. A trending feed that replaces its contents
+  // daily is different in kind: membership is itself an observation about now.
+  const [orphan] = makeItems('artstation', 1, 50).map((i) => ({ ...i, postedAt: null }));
+  const [fromFeed] = makeItems('danbooru', 1, 50).map((i) => ({ ...i, postedAt: null, freshBy: 'feed' }));
   const [dated] = makeItems('pixiv', 1, 50).map((i) => ({ ...i, postedAt: new Date(NOW - 3600_000).toISOString() }));
-  const ranked = rankItems({ artstation: [undated], pixiv: [dated] }, { limit: 5, windowHours: 48, now: NOW });
-  const a = ranked.find((i) => i.source === 'artstation');
+  const ranked = rankItems(
+    { artstation: [orphan], danbooru: [fromFeed], pixiv: [dated] },
+    { limit: 5, windowHours: 48, now: NOW }
+  );
+  const o = ranked.find((i) => i.source === 'artstation');
+  const f = ranked.find((i) => i.source === 'danbooru');
   const p = ranked.find((i) => i.source === 'pixiv');
-  assert.equal(a.heat, 80, 'popularity 1.0 and nothing for freshness');
-  assert.equal(a.dateKnown, false, 'and it says so, so the card can too');
-  assert.ok(p.heat > a.heat, 'a piece that can prove it is new outranks one that cannot');
-  assert.equal(p.dateKnown, true);
+  assert.equal(o.heat, 80, 'no date and no daily feed: popularity alone');
+  assert.equal(f.heat, 93, 'a feed that turns over daily places its members within a day');
+  assert.ok(p.heat > f.heat, 'an actual timestamp still beats an inference from a feed');
+  assert.equal(o.dateKnown, false, 'and both still say the date is unknown');
+  assert.equal(f.dateKnown, false);
+});
+
+test('normalizer: trending items say where their recency comes from', () => {
+  const [item] = normalizeArtStation({
+    data: [{ hash_id: 'a', title: 'A', url: 'https://www.artstation.com/artwork/a', smaller_square_cover_url: 'https://c/x/smaller_square/a.jpg', user: {} }],
+  });
+  assert.equal(item.freshBy, 'feed', 'so ranking can tell it apart from an undated orphan');
+  assert.equal(item.postedAt, null, 'ArtStation still dates nothing');
 });
 
 test('ranking: heat is 0-100 and the top post of each source scores highest', () => {
