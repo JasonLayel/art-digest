@@ -62,7 +62,7 @@ const results = [];
 for (const [label, url, options] of [
   // Control: the endpoint the collector already uses every day. If this
   // answers while /users/ paths refuse, the block is on the path, not on us.
-  ['CONTROL explore/trending', 'https://www.artstation.com/api/v2/community/explore/projects/trending.json?page=1&dimension=all&per_page=5', {}],
+  ['CONTROL explore/trending', 'https://www.artstation.com/api/v2/community/explore/projects/trending.json?page=1&dimension=all&per_page=50', {}],
   ['profile', `https://www.artstation.com/users/${user}.json`, {}],
   ['profile (browser headers)', `https://www.artstation.com/users/${user}.json`, { browserish: true }],
   ['profile (v2 api)', `https://www.artstation.com/api/v2/users/${user}/profile.json`, { browserish: true }],
@@ -120,7 +120,15 @@ if (likes?.ok) {
     }
   }
 } else {
-  out.push('', '> Likes are not readable anonymously — either the endpoint is gone or the profile keeps likes private.');
+  const codes = [...new Set(results.filter((r) => r.label.startsWith('likes')).map((r) => r.status))];
+  out.push(
+    '',
+    `> Likes did not come back (${codes.join(', ')}).`,
+    '> A 403 here says the request was refused, which is not the same as the likes being private:',
+    '> a private profile still serves its public endpoints. Compare against the control row above,',
+    '> and against whether the daily collection is still reading the explore feed, before concluding',
+    '> anything about the account itself.'
+  );
 }
 
 const text = out.join('\n');
