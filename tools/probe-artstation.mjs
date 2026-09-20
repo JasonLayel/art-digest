@@ -114,7 +114,7 @@ for (const r of results) {
 // differ from the unfiltered feed, and from each other.
 const idsOf = (r) => new Set((r?.body?.data ?? []).map((p) => p.hash_id || p.id).filter(Boolean));
 const controlRow = results.find((r) => r.label.startsWith('CONTROL'));
-const filtered = results.filter((r) => r.ok && /channel|medium=|search:/.test(r.label));
+const filtered = results.filter((r) => r.ok && /channel|medium=|search:|latest/.test(r.label));
 if (controlRow?.ok && filtered.length) {
   const control = idsOf(controlRow);
   out.push('', '### Do the filters actually filter?', '', '| feed | rows | shared with trending | verdict |', '|---|---|---|---|');
@@ -124,6 +124,18 @@ if (controlRow?.ok && filtered.length) {
     const verdict = ids.size === 0 ? 'empty' : shared === ids.size ? '**ignored — same as trending**' : shared === 0 ? 'filters' : `partly (${shared} overlap)`;
     out.push(`| ${r.label} | ${ids.size} | ${shared} | ${verdict} |`);
   }
+  const latest = results.find((r) => r.label === 'explore/latest');
+  if (latest?.ok) {
+    const shared = [...idsOf(latest)].filter((id) => control.has(id)).length;
+    out.push(
+      '',
+      shared >= 45
+        ? '- `explore/latest` is trending wearing a different name — nothing gained.'
+        : `- **\`explore/latest\` is its own feed** (${shared}/50 shared with trending). Rows are still undated,` +
+          ' but a feed named latest is ordered by upload, so its head is new by construction rather than by assumption.'
+    );
+  }
+
   // Compare two actual channels against each other, not whatever happened to
   // come first in the list.
   const channels = filtered.filter((r) => r.label.includes('?channel='));
