@@ -100,7 +100,7 @@ for (const r of results) {
 // differ from the unfiltered feed, and from each other.
 const idsOf = (r) => new Set((r?.body?.data ?? []).map((p) => p.hash_id || p.id).filter(Boolean));
 const controlRow = results.find((r) => r.label.startsWith('CONTROL'));
-const filtered = results.filter((r) => r.ok && /channel |medium=|search:/.test(r.label));
+const filtered = results.filter((r) => r.ok && /channel|medium=|search:/.test(r.label));
 if (controlRow?.ok && filtered.length) {
   const control = idsOf(controlRow);
   out.push('', '### Do the filters actually filter?', '', '| feed | rows | shared with trending | verdict |', '|---|---|---|---|');
@@ -110,10 +110,17 @@ if (controlRow?.ok && filtered.length) {
     const verdict = ids.size === 0 ? 'empty' : shared === ids.size ? '**ignored — same as trending**' : shared === 0 ? 'filters' : `partly (${shared} overlap)`;
     out.push(`| ${r.label} | ${ids.size} | ${shared} | ${verdict} |`);
   }
-  const [a, b] = filtered;
-  if (a && b) {
+  // Compare two actual channels against each other, not whatever happened to
+  // come first in the list.
+  const channels = filtered.filter((r) => r.label.includes('?channel='));
+  if (channels.length >= 2) {
+    const [a, b] = channels;
     const overlap = [...idsOf(a)].filter((id) => idsOf(b).has(id)).length;
-    out.push('', `- two different channels share **${overlap}** of their rows${overlap === 50 ? ' — which would mean the parameter does nothing' : ''}`);
+    out.push(
+      '',
+      `- \`${a.label}\` and \`${b.label}\` share **${overlap}** rows` +
+        (overlap === 0 ? ' — different feeds, so the channel parameter is real' : overlap >= 45 ? ' — the same feed, so it does nothing' : '')
+    );
   }
 }
 
