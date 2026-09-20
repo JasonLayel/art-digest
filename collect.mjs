@@ -936,90 +936,31 @@ async function collectDanbooru(cfg) {
   };
 }
 
-/**
- * ArtStation, asked for the subjects you actually care about.
+/*
+ * ArtStation used to be searched for the subjects in the taste profile, so
+ * that the profile drove collection and not only ranking. That source is gone,
+ * because it could never return anything again:
  *
- * Its trending feed is whatever the whole site is looking at, and its channel
- * and medium filters are decoration — every one of them returns trending
- * verbatim. Search is the only parameter it honours, so that is what this
- * uses. The queries come from the taste profile, which means the profile
- * shapes what gets collected and not only how it is ranked.
+ *   - Search rows carry nine fields — hash_id, hide_as_adult, icons, id,
+ *     is_adult_content, smaller_square_cover_url, title, url, user. No date,
+ *     no like count. The same is true of trending and of latest.
+ *   - Search orders the whole archive by relevance, so an undated row there
+ *     can be any age, and one that surfaced was eleven years old. Dropping
+ *     undated search results is what a digest of new work has to do, and it
+ *     drops all of them.
+ *   - A project's own page would carry the date, but /projects/<hash>.json
+ *     answers 403 like every other non-API path, and there is no v2 equivalent.
+ *
+ * So it ran four requests a day to throw away everything it collected.
+ * `tools/probe-artstation.mjs` reproduces every one of those measurements.
+ *
+ * What ArtStation does still offer is explore/projects/latest.json, which is a
+ * real feed — it shares none of its fifty rows with trending, and it turned
+ * over seven of them in 150 seconds while trending turned over none
+ * (`tools/probe-artstation-churn.mjs`). Work from its head is new by
+ * construction. It carries no popularity signal of any kind, which is why it
+ * is not wired in here: this digest ranks on popularity first.
  */
-export function searchQueriesFrom(taste, limit = 4) {
-  const weighted = Object.entries(taste?.keywords || {})
-    .map(([term, weight]) => [term, Number(weight) || 0])
-    // A phrase makes a far better search than a single word.
-    .sort((a, b) => b[1] + (b[0].includes(' ') ? 1.5 : 0) - (a[1] + (a[0].includes(' ') ? 1.5 : 0)));
-  return weighted.slice(0, limit).map(([term]) => term);
-}
-
-export async function collectArtStationSearch(cfg, { search = null } = {}) {
-  const fetchQuery =
-    search ||
-    ((query) =>
-      get(
-        `https://www.artstation.com/api/v2/search/projects.json?query=${encodeURIComponent(query)}&page=1&per_page=50`,
-        { headers: { 'User-Agent': BROWSER_UA, Accept: 'application/json', Referer: 'https://www.artstation.com/' } }
-      ));
-  const queries = cfg.artstationQueries || [];
-  if (!queries.length) return { items: [], fetched: 0, note: 'no queries configured' };
-
-  const items = [];
-  const failed = [];
-  let fetched = 0;
-  let undated = 0;
-  let sample;
-
-  for (const query of queries) {
-    try {
-      const payload = await fetchQuery(query);
-      const rows = payload?.data ?? payload?.results ?? [];
-      fetched += rows.length;
-      sample = sample ?? sampleShape(rows[0]);
-      // The search payload is the explore payload, so the same normalizer
-      // reads it; the query becomes the context, which spreads the digest's
-      // picks across subjects the way subreddits spread Reddit's.
-      for (const [index, item] of normalizeArtStation({ data: rows }).entries()) {
-        // Search returns the whole archive ordered by relevance, not by date,
-        // so an undated row here could be eleven years old — and the freshness
-        // filter lets undated items through on the assumption that a feed is
-        // inherently current, which is true of trending and false of this.
-        // Anything that cannot prove its age does not belong in a digest of
-        // new work.
-        if (!item.postedAt) {
-          undated++;
-          continue;
-        }
-        const likes = Number(item.value) || 0;
-        items.push({
-          ...item,
-          source: 'artsearch',
-          id: item.id.replace('artstation:', 'artsearch:'),
-          context: query,
-          // And relevance rank is not popularity: say which it is.
-          scoreLabel: likes && !/trending/.test(item.scoreLabel) ? item.scoreLabel : `#${index + 1} for "${query}"`,
-        });
-      }
-    } catch (err) {
-      failed.push(`${query} (${err.message})`);
-    }
-    if (!search) await sleep(800);
-  }
-
-  if (!items.length && failed.length) throw new Error(failed.join('; '));
-  return {
-    items,
-    fetched,
-    note: [
-      `${queries.length} quer${queries.length === 1 ? 'y' : 'ies'}: ${queries.join(', ')}`,
-      undated ? `${undated} undated results dropped as unprovable age` : '',
-      failed.length ? `skipped ${failed.length}` : '',
-    ]
-      .filter(Boolean)
-      .join(' · '),
-    sample,
-  };
-}
 
 export const SOURCES = [
   { id: 'artstation', label: 'ArtStation', home: 'https://www.artstation.com', collect: collectArtStation },
@@ -1028,7 +969,6 @@ export const SOURCES = [
   { id: 'deviantart', label: 'DeviantArt', home: 'https://www.deviantart.com', collect: collectDeviantArt },
   { id: 'bluesky', label: 'Bluesky', home: 'https://bsky.app', collect: collectBluesky },
   { id: 'danbooru', label: 'Danbooru', home: 'https://danbooru.donmai.us', collect: collectDanbooru },
-  { id: 'artsearch', label: 'Your subjects', home: 'https://www.artstation.com', collect: collectArtStationSearch },
 ];
 
 /* ---------------------------------------------------------------- ranking */
@@ -1450,9 +1390,6 @@ export async function buildDigest(cfg = CONFIG) {
   // The profile is needed before collecting, because it decides what to search
   // ArtStation for as well as how to rank what comes back.
   const profile = await loadTaste(HERE);
-  cfg.artstationQueries = splitList(process.env.ART_DIGEST_QUERIES).length
-    ? splitList(process.env.ART_DIGEST_QUERIES)
-    : searchQueriesFrom(profile);
   const sources = cfg.sources?.length
     ? SOURCES.filter((s) => cfg.sources.includes(s.id))
     : SOURCES;

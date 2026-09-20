@@ -23,8 +23,6 @@ import {
   affinityFor,
   itemWords,
   loadTaste,
-  searchQueriesFrom,
-  collectArtStationSearch,
   ADULT_SUBS,
   rankItems,
   resolveThumbnails,
@@ -833,73 +831,6 @@ test('likes: weights and profile size stay bounded however often you like someth
   assert.equal(after.artists.prolific, 10, 'a weight tops out');
   assert.equal(after.keywords.architecture, 10);
   assert.ok(Object.keys(after.keywords).length <= 400);
-});
-
-test('search queries: the profile decides what ArtStation is asked for', () => {
-  // ArtStation honours no filter but search, so the profile has to drive
-  // collection rather than only ranking.
-  const queries = searchQueriesFrom({
-    keywords: { architecture: 3, 'architectural visualization': 3, moody: 1, 'environment design': 2, facade: 1 },
-  });
-  assert.equal(queries.length, 4);
-  assert.equal(queries[0], 'architectural visualization', 'weight first');
-  assert.ok(
-    queries.indexOf('environment design') < queries.indexOf('architecture'),
-    'a phrase outranks a bare word of similar weight, because it searches better'
-  );
-  assert.ok(!queries.includes('facade'), 'the weakest terms are left out');
-});
-
-test('search queries: an empty profile asks for nothing rather than everything', () => {
-  assert.deepEqual(searchQueriesFrom({}), []);
-  assert.deepEqual(searchQueriesFrom({ keywords: {} }), []);
-});
-
-test('search results: anything that cannot prove its age is dropped', async () => {
-  // Search returns the whole archive ordered by relevance. The freshness
-  // window lets undated items through on the assumption a feed is inherently
-  // current — true of trending, false here, which is how an eleven-year-old
-  // piece reached the digest.
-  const rows = [
-    { hash_id: 'old', title: 'Marsh Fortress', url: 'https://www.artstation.com/artwork/old', smaller_square_cover_url: 'https://c/x/smaller_square/a.jpg', user: { full_name: 'Aaron Limonick' } },
-    { hash_id: 'new', title: 'Harbour at dusk', url: 'https://www.artstation.com/artwork/new', published_at: '2026-09-19T10:00:00.000Z', smaller_square_cover_url: 'https://c/x/smaller_square/b.jpg', user: { full_name: 'Someone' } },
-  ];
-  const result = await collectArtStationSearch(
-    { artstationQueries: ['environment design'] },
-    { search: async () => ({ data: rows }) }
-  );
-
-  assert.deepEqual(result.items.map((i) => i.title), ['Harbour at dusk'], 'only the dated one survives');
-  assert.match(result.note, /1 undated results dropped/, 'and the drop is reported, not silent');
-  assert.equal(result.fetched, 2, 'while the fetch count still reflects what came back');
-});
-
-test('search results: a relevance rank does not get to call itself trending', async () => {
-  const rows = [
-    { hash_id: 'a', title: 'A', url: 'https://www.artstation.com/artwork/a', published_at: '2026-09-19T10:00:00.000Z', smaller_square_cover_url: 'https://c/x/smaller_square/a.jpg', user: {} },
-    { hash_id: 'b', title: 'B', url: 'https://www.artstation.com/artwork/b', published_at: '2026-09-19T11:00:00.000Z', smaller_square_cover_url: 'https://c/x/smaller_square/b.jpg', user: {} },
-  ];
-  const { items } = await collectArtStationSearch(
-    { artstationQueries: ['archviz'] },
-    { search: async () => ({ data: rows }) }
-  );
-  assert.deepEqual(items.map((i) => i.scoreLabel), ['#1 for "archviz"', '#2 for "archviz"']);
-  assert.ok(items.every((i) => i.context === 'archviz'));
-  assert.ok(items.every((i) => i.source === 'artsearch' && i.id.startsWith('artsearch:')));
-});
-
-test('search results: real like counts are kept over a relevance rank', async () => {
-  const { items } = await collectArtStationSearch(
-    { artstationQueries: ['archviz'] },
-    {
-      search: async () => ({
-        data: [
-          { hash_id: 'a', title: 'A', url: 'https://www.artstation.com/artwork/a', published_at: '2026-09-19T10:00:00.000Z', likes_count: 4200, smaller_square_cover_url: 'https://c/x/smaller_square/a.jpg', user: {} },
-        ],
-      }),
-    }
-  );
-  assert.equal(items[0].scoreLabel, '4.2k likes', 'if ArtStation ever returns counts here, they win');
 });
 
 /* ------------------------------------------------------------ nsfw policy */

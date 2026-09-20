@@ -44,12 +44,11 @@ it stays a plain static page with no server, no build and no API keys.
 
 | Source | Endpoint | Popularity signal |
 | --- | --- | --- |
-| ArtStation | community trending explore feed | position in the trending feed (the feed carries no like counts), or likes when the projects feed answers |
+| ArtStation | community trending explore feed | position in the trending feed (the feed carries no like counts, and no dates either — see below) |
 | Reddit | `top?t=day` across the subreddits below | upvotes, or feed position on the Atom fallback |
 | Pixiv | daily illustration ranking (plus the R-18 ranking with a session cookie) | bookmarks |
 | DeviantArt | Daily Deviations (API) or `boost:popular max_age:24h in:digitalart` RSS | favourites, or position in the feed |
 | Bluesky | `searchPosts` over the art hashtags, public AppView, no credentials | likes |
-| Your subjects | ArtStation search, one query per subject your profile names | likes, or feed position |
 | Danbooru | `order:score age:1d` | score and favourites |
 
 ### Subreddits
@@ -156,28 +155,45 @@ Gmail's proxy perfectly well. So a candidate that fails verification is marked
 `thumbVerified: false` and shipped anyway rather than dropped — dropping it is
 what quietly cost every Danbooru image for four days.
 
-### Asking for what you like, not only sorting it
+### What ArtStation will and will not tell us
 
-A profile can only re-rank what was collected, and most of these sources cannot
-carry a given subject at all — Pixiv's ranking and Danbooru are anime and
-fandom art whatever your profile says. So the profile also drives collection:
-its heaviest keywords become ArtStation searches, and those results arrive as
-their own source with their own share of the digest.
+ArtStation is the one source here that publishes no dates at all. Every row it
+returns — trending, latest, search alike — carries exactly these fields:
 
-Search results are held to one extra rule: **anything undated is dropped.**
-Elsewhere an item without a timestamp is kept, on the grounds that a feed of
-what is trending or top-of-the-day is inherently current. Search is not — it is
-the whole archive ordered by relevance, so an undated row there can be a decade
-old, and one was. Their score label says which rank in which query it is,
-rather than borrowing the word "trending" from the feed this normalizer was
-written for.
+```
+hash_id, hide_as_adult, icons, id, is_highlighted,
+small_square_cover_url, smaller_square_cover_url, title, url, user
+```
 
-ArtStation is the only source where this is possible, and only through search.
-Its `channel` and `medium` parameters are decoration — every channel returns
-the unfiltered trending feed verbatim, and two different channels return
-identical rows. `tools/probe-artstation.mjs` checks for exactly that, because a
-parameter that is quietly ignored answers 200 with a full page of results and
-looks like it works.
+No upload date, no like count, no view count. A project's own page would carry
+them, but `/projects/<hash>.json` answers 403 the way every non-API path does,
+and there is no v2 equivalent — the closest guess 500s. So an ArtStation piece
+can be ranked by where the site itself puts it, and by nothing else.
+
+Its `channel` and `medium` parameters are decoration: every channel returns the
+unfiltered trending feed verbatim, and two different channels return identical
+rows. `?sorting=latest` is ignored the same way. Search is the one *parameter*
+it honours, and `explore/projects/latest.json` the one alternative *path* —
+that one shares none of its fifty rows with trending and turned over seven of
+them in 150 seconds while trending turned over none, so it is genuinely ordered
+by upload.
+
+Two things follow, and both are load-bearing:
+
+- **The taste profile no longer drives ArtStation collection.** It used to, via
+  search. But search orders the whole archive by relevance, and its rows are
+  undated, so it surfaced an eleven-year-old piece at #6. Dropping undated
+  search results is the only honest rule, and it drops every one of them — the
+  source was running four requests a day to throw away everything it collected.
+  It is gone. The profile still re-ranks everything every source returns.
+- **ArtStation picks are labelled `date unknown`,** in the gallery and the
+  email, and earn no freshness points (see below). They are in the digest
+  because ArtStation is featuring them, which is a real signal — just not a
+  signal about age.
+
+`tools/probe-artstation.mjs` and `tools/probe-artstation-churn.mjs` reproduce
+every measurement above. They exist because a parameter that is quietly ignored
+answers 200 with a full page of results and looks exactly like one that works.
 
 ### Taste
 
@@ -220,6 +236,19 @@ Upvotes, likes and bookmarks aren't the same currency, so each piece is scored
 against the top piece *of its own source* (80%) plus a freshness bonus (20%),
 giving a 0–100 "heat". The final list is then filled round-robin across the
 sources so one busy site can't take over the digest.
+
+**Freshness is only paid to work that can prove its age.** Anything older than
+the 48-hour window is dropped outright. An item with no timestamp is kept — a
+feed of what is trending or top-of-the-day is current even when it doesn't say
+so, and dropping them would silence ArtStation entirely — but it scores zero on
+freshness rather than being handed the age of a piece halfway through the
+window. That invented age used to be worth 13 points, which was enough to seat
+ArtStation's six undated picks at the top of every digest (93, 92, 90…) on a
+number nobody had measured. They now score 80 at best, and anything that can
+show it is new outranks them.
+
+Round-robin is untouched by this: every source still gets the same share of the
+24 slots. The change is only to what a pick may claim about itself.
 
 ## Running it yourself
 
