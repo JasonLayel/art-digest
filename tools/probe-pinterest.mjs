@@ -124,8 +124,34 @@ for (const r of results.filter((x) => x.ok && /xml/.test(x.type))) {
       /* a relative or malformed link tells us nothing */
     }
   }
+  // Pinterest keeps the original attribution in the title text rather than the
+  // link, in the shape "<work>, <Artist> on <Platform> at <url>". How often it
+  // is actually there decides whether artists are recoverable at all.
+  const titles = items.map((b) => (b.match(/<title>([\s\S]*?)<\/title>/i) || [])[1] || '');
+  const ATTRIBUTION = /^(.*?),\s*(.+?)\s+on\s+([A-Za-z][\w .-]*?)\s+at\s+(https?:\/\/\S+)/i;
+  const matched = titles.map((t) => t.match(ATTRIBUTION)).filter(Boolean);
+  const platforms = new Map();
+  for (const m of matched) {
+    const key = m[3].trim();
+    platforms.set(key, (platforms.get(key) || 0) + 1);
+  }
+  const sourceHosts = new Map();
+  for (const b of items) {
+    const found = [...b.matchAll(/https?:\/\/([^\s"'<]+)/g)].map((m) => m[1].split('/')[0].replace(/^www\./, ''));
+    for (const h of new Set(found)) if (!/pinterest|pinimg/.test(h)) sourceHosts.set(h, (sourceHosts.get(h) || 0) + 1);
+  }
+
   out.push('', `### ${r.label}`, '');
   out.push(`- pins in the feed: **${items.length}**`);
+  out.push(`- titles carrying "<artist> on <platform> at <url>": **${matched.length} of ${titles.length}**`);
+  out.push(`- distinct artists recoverable: **${new Set(matched.map((m) => m[2].trim().toLowerCase())).size}**`);
+  out.push(`- platforms named in titles: ${platforms.size ? [...platforms.entries()].sort((a, b) => b[1] - a[1]).map(([n, c]) => `${n} (${c})`).join(', ') : '_none_'}`);
+  out.push(
+    `- non-Pinterest hosts anywhere in an item: ${
+      sourceHosts.size ? [...sourceHosts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 8).map(([h, c]) => `${h} (${c})`).join(', ') : '_none_'
+    }`
+  );
+  out.push(`- titles that are blank or generic: **${titles.filter((t) => t.trim().length < 12).length}**`);
   out.push(`- carries \`<description>\`: ${/<description>/.test(r.body) ? 'yes' : 'no'}`);
   out.push(`- carries an image (\`media:\` or \`<img\`): ${/<media:|&lt;img|<img/.test(r.body) ? 'yes' : 'no'}`);
   out.push(
