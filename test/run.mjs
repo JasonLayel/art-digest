@@ -973,6 +973,20 @@ test('ranking: keeps undated items (the source ordered them for us)', () => {
   assert.equal(ranked.length, 3);
 });
 
+test('ranking: an undated item is scored on popularity alone', () => {
+  // Handing it a made-up age was worth 13 points, which seated ArtStation at
+  // the top of the digest on a number nobody had measured.
+  const [undated] = makeItems('artstation', 1, 50).map((i) => ({ ...i, postedAt: null }));
+  const [dated] = makeItems('pixiv', 1, 50).map((i) => ({ ...i, postedAt: new Date(NOW - 3600_000).toISOString() }));
+  const ranked = rankItems({ artstation: [undated], pixiv: [dated] }, { limit: 5, windowHours: 48, now: NOW });
+  const a = ranked.find((i) => i.source === 'artstation');
+  const p = ranked.find((i) => i.source === 'pixiv');
+  assert.equal(a.heat, 80, 'popularity 1.0 and nothing for freshness');
+  assert.equal(a.dateKnown, false, 'and it says so, so the card can too');
+  assert.ok(p.heat > a.heat, 'a piece that can prove it is new outranks one that cannot');
+  assert.equal(p.dateKnown, true);
+});
+
 test('ranking: heat is 0-100 and the top post of each source scores highest', () => {
   const ranked = rankItems({ reddit: makeItems('reddit', 5, 9000) }, { limit: 5, windowHours: 48, now: NOW });
   assert.ok(ranked.every((i) => i.heat >= 0 && i.heat <= 100));

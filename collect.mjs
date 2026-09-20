@@ -1056,15 +1056,21 @@ export function rankItems(
     const scored = fresh
       .map((item) => {
         const popularity = Math.min(1, (item.value || 0) / max);
-        const ageHours = item.postedAt ? Math.max(0, (now - Date.parse(item.postedAt)) / 3.6e6) : windowHours / 2;
-        const freshness = Math.max(0, 1 - ageHours / (windowHours * 1.5));
+        // An undated item used to be handed the age of a piece halfway through
+        // the window — worth thirteen points of heat it had not earned, which
+        // is how ArtStation came to occupy the top of every digest on a number
+        // nobody had measured. Score what is known (the source's own ranking)
+        // and award nothing for what is not.
+        const dateKnown = Boolean(item.postedAt) && Number.isFinite(Date.parse(item.postedAt));
+        const ageHours = dateKnown ? Math.max(0, (now - Date.parse(item.postedAt)) / 3.6e6) : 0;
+        const freshness = dateKnown ? Math.max(0, 1 - ageHours / (windowHours * 1.5)) : 0;
         const heat = Math.round((popularity * 0.8 + freshness * 0.2) * 100);
-        if (!taste) return { ...item, heat };
+        if (!taste) return { ...item, heat, dateKnown };
         // Taste changes which piece represents a source, not how many slots
         // that source gets: the round-robin below is untouched, so a profile
         // sharpens the selection without narrowing the range.
         const { score, muted, matched } = affinityFor(item, taste);
-        return { ...item, heat, affinity: Number(score.toFixed(3)), matched, muted };
+        return { ...item, heat, dateKnown, affinity: Number(score.toFixed(3)), matched, muted };
       })
       .filter((item) => !item.muted)
       .map(({ muted, ...item }) => item)
@@ -1349,7 +1355,9 @@ export function renderEmail(digest, { siteUrl = CONFIG.siteUrl, imageSrc = null 
                   <a href="${esc(item.url)}" style="color:#1c1420;text-decoration:none;">${esc(item.title)}</a>
                 </div>
                 <div style="font-size:13px;color:#6b6270;">${esc(item.artist)}</div>
-                <div style="margin-top:6px;font-size:12px;color:#8a8194;">🔥 ${item.heat} · ${esc(item.scoreLabel)}</div>
+                <div style="margin-top:6px;font-size:12px;color:#8a8194;">🔥 ${item.heat} · ${esc(item.scoreLabel)}${
+                  item.dateKnown === false ? ' · <span style="font-style:italic;">date unknown</span>' : ''
+                }</div>
               </td>
             </tr>
           </table>

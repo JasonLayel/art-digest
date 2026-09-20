@@ -293,6 +293,11 @@ body {
 .is-liked .heart { color: var(--nsfw); }
 .is-liked { border-color: var(--nsfw); }
 
+.undated {
+  font-style: italic;
+  opacity: 0.75;
+}
+
 .matched {
   margin: 2px 0 0;
   font-size: 0.72rem;

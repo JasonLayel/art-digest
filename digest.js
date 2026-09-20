@@ -352,7 +352,17 @@
 
     const stats = el('div', 'stats');
     stats.append(el('span', null, item.scoreLabel || ''));
-    stats.append(el('span', null, timeAgo(item.postedAt)));
+    const when = timeAgo(item.postedAt);
+    if (when) {
+      stats.append(el('span', null, when));
+    } else {
+      // A blank here read as "recent" for months. ArtStation publishes no
+      // upload date on any feed, so the honest thing is to say that rather
+      // than let the gap speak.
+      const unknown = el('span', 'undated', 'date unknown');
+      unknown.title = "This source doesn't publish upload dates — it's here on its own ranking, not on age.";
+      stats.append(unknown);
+    }
     body.append(stats);
 
     const heart = el('button', 'heart');
