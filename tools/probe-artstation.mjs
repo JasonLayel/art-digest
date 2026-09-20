@@ -124,6 +124,62 @@ if (controlRow?.ok && filtered.length) {
   }
 }
 
+// Neither trending nor search dates a single row, which is how an eleven-year-old
+// piece reached #6. If a project's own page carries published_at and a like count,
+// a bounded number of candidates can be enriched into real dates and real
+// popularity instead of position-in-a-list.
+const DATE_KEYS = ['published_at', 'created_at', 'updated_at', 'date'];
+const POP_KEYS = ['likes_count', 'views_count', 'comments_count'];
+const sampleHash = (r) => (r?.body?.data ?? []).map((p) => p.hash_id).find(Boolean) || null;
+const detailRows = [];
+for (const [origin, hash] of [
+  ['trending', sampleHash(controlRow)],
+  ['search', sampleHash(results.find((r) => r.ok && r.label.startsWith('search:')))],
+]) {
+  if (!hash) continue;
+  for (const [shape, url] of [
+    ['projects/<hash>.json', `https://www.artstation.com/projects/${hash}.json`],
+    ['api/v2 explore/projects/<hash>', `https://www.artstation.com/api/v2/community/explore/projects/${hash}.json`],
+  ]) {
+    detailRows.push({ origin, shape, ...(await probe(`detail ${shape} (${origin})`, url, { browserish: true })) });
+    await new Promise((r) => setTimeout(r, 1500));
+  }
+}
+if (detailRows.length) {
+  out.push(
+    '',
+    '### Can a project page supply the date its listing omits?',
+    '',
+    '| source row | endpoint | status | dates present | popularity present |',
+    '|---|---|---|---|---|'
+  );
+  let answered = null;
+  for (const d of detailRows) {
+    const body = d.ok ? (d.body?.data && !Array.isArray(d.body.data) ? d.body.data : d.body) : null;
+    const present = (keys) => (body ? keys.filter((k) => body[k] !== undefined && body[k] !== null) : []);
+    const dates = present(DATE_KEYS);
+    const pop = present(POP_KEYS);
+    if (dates.length && !answered) answered = { ...d, body, dates, pop };
+    out.push(
+      `| ${d.origin} | \`${d.shape}\` | ${d.ok ? '✅ ' + d.status : '❌ ' + d.status + (d.note ? ` (${d.note})` : '')} | ` +
+        `${dates.length ? dates.map((k) => `\`${k}\`=${String(body[k]).slice(0, 10)}`).join(', ') : '—'} | ` +
+        `${pop.length ? pop.map((k) => `\`${k}\`=${body[k]}`).join(', ') : '—'} |`
+    );
+  }
+  out.push(
+    '',
+    answered
+      ? `- **Yes.** \`${answered.shape}\` dates a project (\`${answered.dates[0]}\`)` +
+          `${answered.pop.length ? ` and carries ${answered.pop.map((k) => `\`${k}\``).join(', ')}` : ', but carries no like count'}` +
+          ', so ArtStation candidates can be enriched with a real date before the freshness window is applied.'
+      : '- **No.** No detail endpoint answered with a date, so ArtStation rows cannot be aged and anything built on them is a guess about recency.'
+  );
+  if (answered) {
+    const keys = Object.keys(answered.body || {});
+    out.push('', '```', `detail keys: ${keys.sort().join(', ').slice(0, 900)}`, '```');
+  }
+}
+
 out.push('', process.env.ARTSTATION_COOKIE ? '_Probed with a session cookie._' : '_Probed anonymously (no ARTSTATION_COOKIE set)._');
 
 const control = results.find((r) => r.label.startsWith('CONTROL'));
