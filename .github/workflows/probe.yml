@@ -19,4 +19,8 @@ jobs:
         with:
           node-version: '22'
       - name: Probe ArtStation
+        env:
+          # Optional: an ArtStation session cookie makes these authenticated
+          # requests, the way PIXIV_SESSION does for Pixiv.
+          ARTSTATION_COOKIE: ${{ secrets.ARTSTATION_COOKIE }}
         run: node tools/probe-artstation.mjs "${{ inputs.artstation_user }}"

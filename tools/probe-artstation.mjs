@@ -18,12 +18,30 @@ if (!user) {
 const UA =
   'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36';
 
-async function probe(label, url) {
+// A fuller set of the headers a real browser sends, in case the difference
+// between a refusal and an answer is simply how much we look like one.
+const BROWSERISH = {
+  'User-Agent': UA,
+  Accept: 'application/json, text/plain, */*',
+  'Accept-Language': 'en-US,en;q=0.9',
+  'Sec-Ch-Ua': '"Chromium";v="124", "Not:A-Brand";v="24"',
+  'Sec-Ch-Ua-Mobile': '?0',
+  'Sec-Ch-Ua-Platform': '"Windows"',
+  'Sec-Fetch-Dest': 'empty',
+  'Sec-Fetch-Mode': 'cors',
+  'Sec-Fetch-Site': 'same-origin',
+  'X-Requested-With': 'XMLHttpRequest',
+};
+
+async function probe(label, url, { browserish = false } = {}) {
   try {
-    const res = await fetch(url, {
-      headers: { 'User-Agent': UA, Accept: 'application/json', Referer: `https://www.artstation.com/${user}` },
-      signal: AbortSignal.timeout(20_000),
-    });
+    const headers = browserish
+      ? { ...BROWSERISH, Referer: `https://www.artstation.com/${user}` }
+      : { 'User-Agent': UA, Accept: 'application/json', Referer: `https://www.artstation.com/${user}` };
+    // An ArtStation session cookie, if one is configured, turns these into
+    // authenticated requests the way PIXIV_SESSION does for Pixiv.
+    if (process.env.ARTSTATION_COOKIE) headers.Cookie = process.env.ARTSTATION_COOKIE;
+    const res = await fetch(url, { headers, signal: AbortSignal.timeout(20_000) });
     const type = (res.headers.get('content-type') || '').split(';')[0];
     if (!res.ok) return { label, url, status: res.status, type, ok: false };
     if (!type.includes('json')) return { label, url, status: res.status, type, ok: false, note: 'not JSON' };
@@ -41,15 +59,20 @@ const count = (values) => {
 };
 
 const results = [];
-for (const [label, url] of [
-  ['profile', `https://www.artstation.com/users/${user}.json`],
-  ['likes', `https://www.artstation.com/users/${user}/likes.json?page=1`],
-  ['following', `https://www.artstation.com/users/${user}/following.json?page=1`],
-  ['followers', `https://www.artstation.com/users/${user}/followers.json?page=1`],
-  ['own projects', `https://www.artstation.com/users/${user}/projects.json?page=1`],
+for (const [label, url, options] of [
+  // Control: the endpoint the collector already uses every day. If this
+  // answers while /users/ paths refuse, the block is on the path, not on us.
+  ['CONTROL explore/trending', 'https://www.artstation.com/api/v2/community/explore/projects/trending.json?page=1&dimension=all&per_page=5', {}],
+  ['profile', `https://www.artstation.com/users/${user}.json`, {}],
+  ['profile (browser headers)', `https://www.artstation.com/users/${user}.json`, { browserish: true }],
+  ['profile (v2 api)', `https://www.artstation.com/api/v2/users/${user}/profile.json`, { browserish: true }],
+  ['likes', `https://www.artstation.com/users/${user}/likes.json?page=1`, {}],
+  ['likes (browser headers)', `https://www.artstation.com/users/${user}/likes.json?page=1`, { browserish: true }],
+  ['following (browser headers)', `https://www.artstation.com/users/${user}/following.json?page=1`, { browserish: true }],
+  ['own projects (browser headers)', `https://www.artstation.com/users/${user}/projects.json?page=1`, { browserish: true }],
 ]) {
-  results.push(await probe(label, url));
-  await new Promise((r) => setTimeout(r, 1200));
+  results.push(await probe(label, url, options));
+  await new Promise((r) => setTimeout(r, 1500));
 }
 
 const out = [`## ArtStation probe — \`${user}\``, '', '| endpoint | status | rows | total |', '|---|---|---|---|'];
@@ -59,7 +82,20 @@ for (const r of results) {
   out.push(`| ${r.label} | ${r.ok ? '✅ ' + r.status : '❌ ' + r.status + (r.note ? ` (${r.note})` : '')} | ${r.ok ? list.length : '—'} | ${total} |`);
 }
 
-const likes = results.find((r) => r.label === 'likes');
+out.push('', process.env.ARTSTATION_COOKIE ? '_Probed with a session cookie._' : '_Probed anonymously (no ARTSTATION_COOKIE set)._');
+
+const control = results.find((r) => r.label.startsWith('CONTROL'));
+const anyUser = results.filter((r) => !r.label.startsWith('CONTROL'));
+if (control?.ok && anyUser.every((r) => !r.ok)) {
+  out.push(
+    '',
+    '> **The block is path-specific, not IP-specific.** The explore API answers this same runner',
+    '> while every /users/ path refuses it, so this is ArtStation gating profile endpoints — not a',
+    '> privacy setting on the profile, and not our address being blacklisted outright.'
+  );
+}
+
+const likes = results.filter((r) => r.label.startsWith('likes')).find((r) => r.ok);
 if (likes?.ok) {
   const list = rows(likes.body);
   out.push('', '### What a liked project carries', '', '```', `keys: ${Object.keys(list[0] || {}).sort().join(', ')}`, '```');
