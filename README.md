@@ -49,6 +49,7 @@ it stays a plain static page with no server, no build and no API keys.
 | Pixiv | daily illustration ranking (plus the R-18 ranking with a session cookie) | bookmarks |
 | DeviantArt | Daily Deviations (API) or `boost:popular max_age:24h in:digitalart` RSS | favourites, or position in the feed |
 | Bluesky | `searchPosts` over the art hashtags, public AppView, no credentials | likes |
+| Your subjects | ArtStation search, one query per subject your profile names | likes, or feed position |
 | Danbooru | `order:score age:1d` | score and favourites |
 
 ### Subreddits
@@ -154,6 +155,21 @@ reader does not: a CDN that refuses a datacenter will serve a browser or
 Gmail's proxy perfectly well. So a candidate that fails verification is marked
 `thumbVerified: false` and shipped anyway rather than dropped — dropping it is
 what quietly cost every Danbooru image for four days.
+
+### Asking for what you like, not only sorting it
+
+A profile can only re-rank what was collected, and most of these sources cannot
+carry a given subject at all — Pixiv's ranking and Danbooru are anime and
+fandom art whatever your profile says. So the profile also drives collection:
+its heaviest keywords become ArtStation searches, and those results arrive as
+their own source with their own share of the digest.
+
+ArtStation is the only source where this is possible, and only through search.
+Its `channel` and `medium` parameters are decoration — every channel returns
+the unfiltered trending feed verbatim, and two different channels return
+identical rows. `tools/probe-artstation.mjs` checks for exactly that, because a
+parameter that is quietly ignored answers 200 with a full page of results and
+looks like it works.
 
 ### Taste
 

@@ -23,6 +23,7 @@ import {
   affinityFor,
   itemWords,
   loadTaste,
+  searchQueriesFrom,
   ADULT_SUBS,
   rankItems,
   resolveThumbnails,
@@ -831,6 +832,26 @@ test('likes: weights and profile size stay bounded however often you like someth
   assert.equal(after.artists.prolific, 10, 'a weight tops out');
   assert.equal(after.keywords.architecture, 10);
   assert.ok(Object.keys(after.keywords).length <= 400);
+});
+
+test('search queries: the profile decides what ArtStation is asked for', () => {
+  // ArtStation honours no filter but search, so the profile has to drive
+  // collection rather than only ranking.
+  const queries = searchQueriesFrom({
+    keywords: { architecture: 3, 'architectural visualization': 3, moody: 1, 'environment design': 2, facade: 1 },
+  });
+  assert.equal(queries.length, 4);
+  assert.equal(queries[0], 'architectural visualization', 'weight first');
+  assert.ok(
+    queries.indexOf('environment design') < queries.indexOf('architecture'),
+    'a phrase outranks a bare word of similar weight, because it searches better'
+  );
+  assert.ok(!queries.includes('facade'), 'the weakest terms are left out');
+});
+
+test('search queries: an empty profile asks for nothing rather than everything', () => {
+  assert.deepEqual(searchQueriesFrom({}), []);
+  assert.deepEqual(searchQueriesFrom({ keywords: {} }), []);
 });
 
 /* ------------------------------------------------------------ nsfw policy */

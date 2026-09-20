@@ -936,6 +936,62 @@ async function collectDanbooru(cfg) {
   };
 }
 
+/**
+ * ArtStation, asked for the subjects you actually care about.
+ *
+ * Its trending feed is whatever the whole site is looking at, and its channel
+ * and medium filters are decoration — every one of them returns trending
+ * verbatim. Search is the only parameter it honours, so that is what this
+ * uses. The queries come from the taste profile, which means the profile
+ * shapes what gets collected and not only how it is ranked.
+ */
+export function searchQueriesFrom(taste, limit = 4) {
+  const weighted = Object.entries(taste?.keywords || {})
+    .map(([term, weight]) => [term, Number(weight) || 0])
+    // A phrase makes a far better search than a single word.
+    .sort((a, b) => b[1] + (b[0].includes(' ') ? 1.5 : 0) - (a[1] + (a[0].includes(' ') ? 1.5 : 0)));
+  return weighted.slice(0, limit).map(([term]) => term);
+}
+
+async function collectArtStationSearch(cfg) {
+  const queries = cfg.artstationQueries || [];
+  if (!queries.length) return { items: [], fetched: 0, note: 'no queries configured' };
+
+  const items = [];
+  const failed = [];
+  let fetched = 0;
+  let sample;
+
+  for (const query of queries) {
+    try {
+      const payload = await get(
+        `https://www.artstation.com/api/v2/search/projects.json?query=${encodeURIComponent(query)}&page=1&per_page=50`,
+        { headers: { 'User-Agent': BROWSER_UA, Accept: 'application/json', Referer: 'https://www.artstation.com/' } }
+      );
+      const rows = payload?.data ?? payload?.results ?? [];
+      fetched += rows.length;
+      sample = sample ?? sampleShape(rows[0]);
+      // The search payload is the explore payload, so the same normalizer
+      // reads it; the query becomes the context, which spreads the digest's
+      // picks across subjects the way subreddits spread Reddit's.
+      for (const item of normalizeArtStation({ data: rows })) {
+        items.push({ ...item, source: 'artsearch', id: item.id.replace('artstation:', 'artsearch:'), context: query });
+      }
+    } catch (err) {
+      failed.push(`${query} (${err.message})`);
+    }
+    await sleep(800);
+  }
+
+  if (!items.length && failed.length) throw new Error(failed.join('; '));
+  return {
+    items,
+    fetched,
+    note: `${queries.length} quer${queries.length === 1 ? 'y' : 'ies'}: ${queries.join(', ')}${failed.length ? ` · skipped ${failed.length}` : ''}`,
+    sample,
+  };
+}
+
 export const SOURCES = [
   { id: 'artstation', label: 'ArtStation', home: 'https://www.artstation.com', collect: collectArtStation },
   { id: 'reddit', label: 'Reddit', home: 'https://www.reddit.com', collect: collectReddit },
@@ -943,6 +999,7 @@ export const SOURCES = [
   { id: 'deviantart', label: 'DeviantArt', home: 'https://www.deviantart.com', collect: collectDeviantArt },
   { id: 'bluesky', label: 'Bluesky', home: 'https://bsky.app', collect: collectBluesky },
   { id: 'danbooru', label: 'Danbooru', home: 'https://danbooru.donmai.us', collect: collectDanbooru },
+  { id: 'artsearch', label: 'Your subjects', home: 'https://www.artstation.com', collect: collectArtStationSearch },
 ];
 
 /* ---------------------------------------------------------------- ranking */
@@ -1353,6 +1410,12 @@ ${items}
 export async function buildDigest(cfg = CONFIG) {
   const bySource = {};
   const report = [];
+  // The profile is needed before collecting, because it decides what to search
+  // ArtStation for as well as how to rank what comes back.
+  const profile = await loadTaste(HERE);
+  cfg.artstationQueries = splitList(process.env.ART_DIGEST_QUERIES).length
+    ? splitList(process.env.ART_DIGEST_QUERIES)
+    : searchQueriesFrom(profile);
   const sources = cfg.sources?.length
     ? SOURCES.filter((s) => cfg.sources.includes(s.id))
     : SOURCES;
@@ -1396,7 +1459,7 @@ export async function buildDigest(cfg = CONFIG) {
     }
   });
 
-  const taste = await loadTaste(HERE);
+  const taste = profile;
   const tasteTerms =
     Object.keys(taste.keywords).length + Object.keys(taste.artists).length + Object.keys(taste.contexts).length;
   const items = await resolveThumbnails(
