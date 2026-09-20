@@ -33,7 +33,7 @@ const BROWSERISH = {
   'X-Requested-With': 'XMLHttpRequest',
 };
 
-async function probe(label, url, { browserish = false } = {}) {
+async function probe(label, url, { browserish = false, post = null } = {}) {
   try {
     const headers = browserish
       ? { ...BROWSERISH, Referer: `https://www.artstation.com/${user}` }
@@ -41,7 +41,15 @@ async function probe(label, url, { browserish = false } = {}) {
     // An ArtStation session cookie, if one is configured, turns these into
     // authenticated requests the way PIXIV_SESSION does for Pixiv.
     if (process.env.ARTSTATION_COOKIE) headers.Cookie = process.env.ARTSTATION_COOKIE;
-    const res = await fetch(url, { headers, signal: AbortSignal.timeout(20_000) });
+    // The site's own search is a POST with a JSON body, so a GET that answers
+    // may simply be a different, dumber endpoint than the one the UI uses.
+    if (post) headers['Content-Type'] = 'application/json';
+    const res = await fetch(url, {
+      method: post ? 'POST' : 'GET',
+      headers,
+      body: post ? JSON.stringify(post) : undefined,
+      signal: AbortSignal.timeout(20_000),
+    });
     const type = (res.headers.get('content-type') || '').split(';')[0];
     if (!res.ok) return { label, url, status: res.status, type, ok: false };
     if (!type.includes('json')) return { label, url, status: res.status, type, ok: false, note: 'not JSON' };
@@ -76,6 +84,12 @@ for (const [label, url, options] of [
   // Control: the endpoint the collector already uses every day. If this
   // answers while /users/ paths refuse, the block is on the path, not on us.
   ['CONTROL explore/trending', 'https://www.artstation.com/api/v2/community/explore/projects/trending.json?page=1&dimension=all&per_page=50', {}],
+  // If a feed is ordered by date, undated rows are at least honestly recent —
+  // which is the whole question behind an eleven-year-old piece ranking sixth.
+  ['explore/latest', 'https://www.artstation.com/api/v2/community/explore/projects/latest.json?page=1&dimension=all&per_page=50', { browserish: true }],
+  ['explore sorting=latest', 'https://www.artstation.com/api/v2/community/explore/projects/trending.json?page=1&dimension=all&per_page=50&sorting=latest', { browserish: true }],
+  ['search POST (relevance)', 'https://www.artstation.com/api/v2/search/projects.json', { browserish: true, post: { query: 'architecture', page: 1, per_page: 50, sorting: 'relevance' } }],
+  ['search POST (sorting=date)', 'https://www.artstation.com/api/v2/search/projects.json', { browserish: true, post: { query: 'architecture', page: 1, per_page: 50, sorting: 'date' } }],
   ['profile', `https://www.artstation.com/users/${user}.json`, {}],
   ['profile (browser headers)', `https://www.artstation.com/users/${user}.json`, { browserish: true }],
   ['profile (v2 api)', `https://www.artstation.com/api/v2/users/${user}/profile.json`, { browserish: true }],
@@ -122,6 +136,31 @@ if (controlRow?.ok && filtered.length) {
         (overlap === 0 ? ' — different feeds, so the channel parameter is real' : overlap >= 45 ? ' — the same feed, so it does nothing' : '')
     );
   }
+}
+
+// A row's keys settle what can be built on it far better than guessing at
+// field names one at a time. Names only, plus any value that parses as a date —
+// a date is not identifying, a title is.
+for (const label of ['CONTROL explore/trending', 'search: architecture', 'explore/latest', 'search POST (sorting=date)']) {
+  const r = results.find((x) => x.label === label);
+  const row = (r?.body?.data ?? [])[0];
+  if (!row) continue;
+  const keys = Object.keys(row).sort();
+  const dateish = keys.filter((k) => {
+    const v = row[k];
+    return typeof v === 'string' && /\d{4}-\d{2}-\d{2}/.test(v) && !Number.isNaN(Date.parse(v));
+  });
+  out.push(
+    '',
+    `#### keys on a \`${label}\` row`,
+    '',
+    '```',
+    keys.join(', ').slice(0, 900),
+    '```',
+    dateish.length
+      ? `- date-shaped fields: ${dateish.map((k) => `\`${k}\` = ${String(row[k]).slice(0, 10)}`).join(', ')}`
+      : '- **no date-shaped field on this row at all**'
+  );
 }
 
 // Neither trending nor search dates a single row, which is how an eleven-year-old
