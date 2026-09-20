@@ -9,6 +9,10 @@ on:
         description: 'ArtStation username to probe (blank to skip)'
         required: false
         default: 'jasonlayel'
+      artstation_dates:
+        description: 'Open trending artwork pages as HTML and look for upload dates'
+        required: false
+        default: 'false'
       artstation_churn:
         description: 'Sample the latest feed twice to see whether it moves (slow)'
         required: false
@@ -37,6 +41,10 @@ jobs:
           # requests, the way PIXIV_SESSION does for Pixiv.
           ARTSTATION_COOKIE: ${{ secrets.ARTSTATION_COOKIE }}
         run: node tools/probe-artstation.mjs "${{ inputs.artstation_user }}"
+
+      - name: Can an ArtStation artwork page be dated?
+        if: inputs.artstation_dates == 'true'
+        run: node tools/probe-artstation-dates.mjs
 
       - name: Is ArtStation's latest feed ordered by upload?
         if: inputs.artstation_churn == 'true'
