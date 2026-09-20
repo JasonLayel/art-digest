@@ -6,9 +6,17 @@ on:
   workflow_dispatch:
     inputs:
       artstation_user:
-        description: 'ArtStation username to probe'
-        required: true
+        description: 'ArtStation username to probe (blank to skip)'
+        required: false
         default: 'jasonlayel'
+      pinterest_user:
+        description: 'Pinterest username to probe (blank to skip)'
+        required: false
+        default: ''
+      pinterest_board:
+        description: 'Optional Pinterest board slug'
+        required: false
+        default: ''
 
 jobs:
   probe:
@@ -19,8 +27,13 @@ jobs:
         with:
           node-version: '22'
       - name: Probe ArtStation
+        if: inputs.artstation_user != ''
         env:
           # Optional: an ArtStation session cookie makes these authenticated
           # requests, the way PIXIV_SESSION does for Pixiv.
           ARTSTATION_COOKIE: ${{ secrets.ARTSTATION_COOKIE }}
         run: node tools/probe-artstation.mjs "${{ inputs.artstation_user }}"
+
+      - name: Probe Pinterest
+        if: inputs.pinterest_user != ''
+        run: node tools/probe-pinterest.mjs "${{ inputs.pinterest_user }}" "${{ inputs.pinterest_board }}"
