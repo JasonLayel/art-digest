@@ -953,41 +953,70 @@ export function searchQueriesFrom(taste, limit = 4) {
   return weighted.slice(0, limit).map(([term]) => term);
 }
 
-async function collectArtStationSearch(cfg) {
+export async function collectArtStationSearch(cfg, { search = null } = {}) {
+  const fetchQuery =
+    search ||
+    ((query) =>
+      get(
+        `https://www.artstation.com/api/v2/search/projects.json?query=${encodeURIComponent(query)}&page=1&per_page=50`,
+        { headers: { 'User-Agent': BROWSER_UA, Accept: 'application/json', Referer: 'https://www.artstation.com/' } }
+      ));
   const queries = cfg.artstationQueries || [];
   if (!queries.length) return { items: [], fetched: 0, note: 'no queries configured' };
 
   const items = [];
   const failed = [];
   let fetched = 0;
+  let undated = 0;
   let sample;
 
   for (const query of queries) {
     try {
-      const payload = await get(
-        `https://www.artstation.com/api/v2/search/projects.json?query=${encodeURIComponent(query)}&page=1&per_page=50`,
-        { headers: { 'User-Agent': BROWSER_UA, Accept: 'application/json', Referer: 'https://www.artstation.com/' } }
-      );
+      const payload = await fetchQuery(query);
       const rows = payload?.data ?? payload?.results ?? [];
       fetched += rows.length;
       sample = sample ?? sampleShape(rows[0]);
       // The search payload is the explore payload, so the same normalizer
       // reads it; the query becomes the context, which spreads the digest's
       // picks across subjects the way subreddits spread Reddit's.
-      for (const item of normalizeArtStation({ data: rows })) {
-        items.push({ ...item, source: 'artsearch', id: item.id.replace('artstation:', 'artsearch:'), context: query });
+      for (const [index, item] of normalizeArtStation({ data: rows }).entries()) {
+        // Search returns the whole archive ordered by relevance, not by date,
+        // so an undated row here could be eleven years old — and the freshness
+        // filter lets undated items through on the assumption that a feed is
+        // inherently current, which is true of trending and false of this.
+        // Anything that cannot prove its age does not belong in a digest of
+        // new work.
+        if (!item.postedAt) {
+          undated++;
+          continue;
+        }
+        const likes = Number(item.value) || 0;
+        items.push({
+          ...item,
+          source: 'artsearch',
+          id: item.id.replace('artstation:', 'artsearch:'),
+          context: query,
+          // And relevance rank is not popularity: say which it is.
+          scoreLabel: likes && !/trending/.test(item.scoreLabel) ? item.scoreLabel : `#${index + 1} for "${query}"`,
+        });
       }
     } catch (err) {
       failed.push(`${query} (${err.message})`);
     }
-    await sleep(800);
+    if (!search) await sleep(800);
   }
 
   if (!items.length && failed.length) throw new Error(failed.join('; '));
   return {
     items,
     fetched,
-    note: `${queries.length} quer${queries.length === 1 ? 'y' : 'ies'}: ${queries.join(', ')}${failed.length ? ` · skipped ${failed.length}` : ''}`,
+    note: [
+      `${queries.length} quer${queries.length === 1 ? 'y' : 'ies'}: ${queries.join(', ')}`,
+      undated ? `${undated} undated results dropped as unprovable age` : '',
+      failed.length ? `skipped ${failed.length}` : '',
+    ]
+      .filter(Boolean)
+      .join(' · '),
     sample,
   };
 }

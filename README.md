@@ -164,6 +164,14 @@ fandom art whatever your profile says. So the profile also drives collection:
 its heaviest keywords become ArtStation searches, and those results arrive as
 their own source with their own share of the digest.
 
+Search results are held to one extra rule: **anything undated is dropped.**
+Elsewhere an item without a timestamp is kept, on the grounds that a feed of
+what is trending or top-of-the-day is inherently current. Search is not — it is
+the whole archive ordered by relevance, so an undated row there can be a decade
+old, and one was. Their score label says which rank in which query it is,
+rather than borrowing the word "trending" from the feed this normalizer was
+written for.
+
 ArtStation is the only source where this is possible, and only through search.
 Its `channel` and `medium` parameters are decoration — every channel returns
 the unfiltered trending feed verbatim, and two different channels return
