@@ -1,0 +1,22 @@
+# Asks a source what it will answer without credentials, so design decisions
+# rest on measurement rather than on what its API used to do.
+name: Probe a source
+
+on:
+  workflow_dispatch:
+    inputs:
+      artstation_user:
+        description: 'ArtStation username to probe'
+        required: true
+        default: 'jasonlayel'
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Probe ArtStation
+        run: node tools/probe-artstation.mjs "${{ inputs.artstation_user }}"
