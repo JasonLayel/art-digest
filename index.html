@@ -19,6 +19,12 @@
       <span id="updated" class="updated" title="When this digest was collected">Loading…</span>
       <button id="refresh" class="icon-btn" type="button" title="Reload the digest">↻</button>
     </div>
+    <div id="history" class="history hidden">
+      <button id="older" class="icon-btn" type="button" title="The day before">‹</button>
+      <label class="sr-only" for="day">Which day to show</label>
+      <select id="day" class="day-select" title="Jump to a day"></select>
+      <button id="newer" class="icon-btn" type="button" title="The day after">›</button>
+    </div>
   </header>
 
   <nav class="controls" aria-label="Filters">
@@ -31,6 +37,8 @@
   </nav>
 
   <div id="likes" class="likes hidden" role="status" aria-live="polite"></div>
+
+  <div id="past" class="past hidden" role="status"></div>
 
   <p id="notice" class="notice hidden" role="status"></p>
 

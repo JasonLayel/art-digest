@@ -340,6 +340,38 @@ up as a message body:
 curl -s https://raw.githubusercontent.com/JasonLayel/art-digest/main/data/email.html
 ```
 
+## History
+
+Every run has always written `data/archive/<date>.json`, a complete snapshot of
+that day in the same shape as `latest.json`. The gallery can now read them.
+
+A day picker sits in the masthead whenever the archive holds more than one day:
+`‹` and `›` step a day at a time, and the dropdown jumps anywhere. The day being
+shown is in the URL, so a day can be bookmarked or sent to someone —
+`…/#2026-09-22` opens straight to it — and the browser's back button walks back
+through the days you looked at.
+
+Two things deliberately do *not* happen on a past day:
+
+- **No live top-up.** When the collected feed is more than 36 hours old the page
+  pulls fresh Reddit picks to fill the gap. Doing that to a past day would merge
+  today's work into a record of a different day, so it only ever runs on the
+  live feed.
+- **No "Today".** Days are labelled against the actual calendar, not against the
+  newest file in the archive. Those agree only while the schedule is keeping up:
+  before the day's run lands, the newest file is yesterday's, and the picker says
+  so rather than hiding it.
+
+A static page cannot list a directory, so each run also writes
+`data/archive/index.json` — one summary line per day, rebuilt from the files
+actually on disk rather than appended to, so a day deleted by hand leaves the
+index and a day restored by hand rejoins it. A day that will not parse is
+skipped; it does not take the rest of the history with it.
+
+At roughly 32 KB a day, a year of history is about 12 MB. Nothing prunes it;
+delete files from `data/archive/` if you ever want to, and the index will agree
+on the next run.
+
 ## Subscribing in a reader
 
 `data/feed.xml` is a standard RSS feed with one entry per artwork, so a reader

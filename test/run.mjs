@@ -25,6 +25,7 @@ import {
   loadTaste,
   ADULT_SUBS,
   rankItems,
+  buildArchiveIndex,
   resolveThumbnails,
   renderEmail,
   renderFeed,
@@ -1105,6 +1106,78 @@ test('email: renders every item, escapes markup, and links the widget', () => {
 });
 
 /* ----------------------------------------------------------- diagnostics */
+
+/* ------------------------------------------------------------ archive index */
+
+/** A fake archive directory: names in, file bodies out. */
+function fakeArchive(files) {
+  return {
+    list: async () => Object.keys(files),
+    read: async (path) => {
+      const name = path.split('/').pop();
+      if (!(name in files)) throw new Error(`ENOENT ${name}`);
+      return files[name];
+    },
+  };
+}
+
+const dayFile = (date, items) =>
+  JSON.stringify({ generatedAt: `${date}T13:05:00.000Z`, items });
+
+test('archive index: lists the days on disk, newest first', async () => {
+  // A static page cannot list a directory, so this file is the only way a day
+  // of history is reachable at all.
+  const index = await buildArchiveIndex(
+    'data/archive',
+    fakeArchive({
+      '2026-09-16.json': dayFile('2026-09-16', [{ source: 'reddit', nsfw: false }]),
+      '2026-09-18.json': dayFile('2026-09-18', [{ source: 'pixiv', nsfw: true }, { source: 'reddit', nsfw: false }]),
+      '2026-09-17.json': dayFile('2026-09-17', [{ source: 'danbooru', nsfw: true }]),
+    })
+  );
+  assert.deepEqual(index.days.map((d) => d.date), ['2026-09-18', '2026-09-17', '2026-09-16']);
+  assert.equal(index.days[0].items, 2);
+  assert.equal(index.days[0].nsfw, 1, 'so the picker can warn before opening a day');
+  assert.deepEqual(index.days[0].sources, ['pixiv', 'reddit']);
+  assert.equal(index.days[0].generatedAt, '2026-09-18T13:05:00.000Z');
+});
+
+test('archive index: ignores anything that is not a day file', async () => {
+  const index = await buildArchiveIndex(
+    'data/archive',
+    fakeArchive({
+      'index.json': '{"days":[]}',
+      'README.md': '# not a day',
+      '2026-09-16.json': dayFile('2026-09-16', [{ source: 'reddit' }]),
+      '2026-9-16.json': dayFile('2026-09-16', [{ source: 'reddit' }]),
+    })
+  );
+  assert.deepEqual(index.days.map((d) => d.date), ['2026-09-16'], 'including the index itself');
+});
+
+test('archive index: one unreadable day does not cost the others', async () => {
+  // A run killed mid-write leaves a truncated file. Losing the whole history
+  // because of it would be the worse failure.
+  const index = await buildArchiveIndex(
+    'data/archive',
+    fakeArchive({
+      '2026-09-16.json': dayFile('2026-09-16', [{ source: 'reddit' }]),
+      '2026-09-17.json': '{"generatedAt": "2026-09-17T13:0',
+      '2026-09-18.json': dayFile('2026-09-18', [{ source: 'pixiv' }]),
+    })
+  );
+  assert.deepEqual(index.days.map((d) => d.date), ['2026-09-18', '2026-09-16']);
+});
+
+test('archive index: an archive that is not there yet is empty, not an error', async () => {
+  const index = await buildArchiveIndex('data/archive', {
+    list: async () => {
+      throw new Error('ENOENT');
+    },
+  });
+  assert.deepEqual(index.days, [], 'the first ever run has no history to offer');
+  assert.ok(index.updatedAt, 'and still says when it looked');
+});
 
 test('sampleShape: trims a raw row to something loggable', () => {
   const shape = sampleShape({

@@ -4,6 +4,8 @@
   'use strict';
 
   const FEED_URL = 'data/latest.json';
+  const ARCHIVE_INDEX_URL = 'data/archive/index.json';
+  const dayUrl = (date) => `data/archive/${date}.json`;
   const PREFS_KEY = 'artDigest.prefs';
   const LIKES_KEY = 'artDigest.likes';
   const REPO = 'JasonLayel/art-digest';
@@ -35,6 +37,8 @@
     rating: 'all', // all | sfw | nsfw
     blur: false,
     likes: [], // pieces you hearted, kept here until you send them to the repo
+    days: [], // every day the archive holds, newest first
+    date: null, // null means today's collection; otherwise a 'YYYY-MM-DD'
   };
 
   function loadLikes() {
@@ -139,6 +143,88 @@
     renderGrid();
     renderSources();
     renderLikeBar();
+    renderHistory();
+  }
+
+  /* ------------------------------------------------------------- history */
+
+  /**
+   * "Today", "Yesterday", then a weekday and date — no year unless it differs.
+   *
+   * Measured against the actual calendar, not against the newest file in the
+   * archive. Those are the same thing only while the schedule is keeping up:
+   * before the day's run lands, or after one fails, the newest file is
+   * yesterday's and calling it "Today" would hide exactly that.
+   */
+  function dayLabel(date) {
+    const when = new Date(`${date}T12:00:00Z`);
+    if (Number.isNaN(when.getTime())) return date;
+    const shift = (iso, days) => {
+      const t = new Date(iso);
+      t.setUTCDate(t.getUTCDate() + days);
+      return t.toISOString().slice(0, 10);
+    };
+    const today = new Date().toISOString().slice(0, 10);
+    if (date === today) return 'Today';
+    if (date === shift(`${today}T12:00:00Z`, -1)) return 'Yesterday';
+    const sameYear = when.getUTCFullYear() === new Date().getUTCFullYear();
+    return when.toLocaleDateString(undefined, {
+      weekday: 'short',
+      day: 'numeric',
+      month: 'short',
+      year: sameYear ? undefined : 'numeric',
+      timeZone: 'UTC',
+    });
+  }
+
+  /** How many days back the shown day is, in words. */
+  function daysBack(date) {
+    const newest = state.days[0]?.date;
+    if (!newest) return '';
+    const gap = Math.round((Date.parse(`${newest}T12:00:00Z`) - Date.parse(`${date}T12:00:00Z`)) / 86_400_000);
+    if (gap <= 0) return '';
+    return gap === 1 ? 'the day before the latest' : `${gap} days before the latest`;
+  }
+
+  function renderHistory() {
+    const wrap = $('history');
+    const select = $('day');
+    const banner = $('past');
+    // One day of archive is not a history worth navigating.
+    if (state.days.length < 2) {
+      wrap.classList.add('hidden');
+      banner.classList.add('hidden');
+      return;
+    }
+    wrap.classList.remove('hidden');
+
+    const showing = state.date || state.days[0].date;
+    if (select.dataset.built !== String(state.days.length)) {
+      select.textContent = '';
+      for (const day of state.days) {
+        const option = el('option', null, `${dayLabel(day.date)} · ${day.items} picks`);
+        option.value = day.date;
+        select.append(option);
+      }
+      select.dataset.built = String(state.days.length);
+    }
+    select.value = showing;
+
+    // Older is further down the list, because the list is newest first.
+    const at = state.days.findIndex((d) => d.date === showing);
+    $('older').disabled = at < 0 || at >= state.days.length - 1;
+    $('newer').disabled = at <= 0;
+
+    const back = state.date ? daysBack(state.date) : '';
+    banner.classList.toggle('hidden', !back);
+    if (back) {
+      banner.textContent = '';
+      banner.append(el('span', null, `📅 Showing ${dayLabel(state.date)} — ${back}.`));
+      const home = el('button', null, 'Back to the latest');
+      home.type = 'button';
+      home.addEventListener('click', () => showDay(null));
+      banner.append(home);
+    }
   }
 
   function renderLikeBar() {
@@ -421,17 +507,39 @@
 
   /* --------------------------------------------------------------- data */
 
-  async function fetchDigest() {
+  async function fetchDigest(date = null) {
     // A single-file copy of the page carries its digest inline, so there is
     // nothing to fetch and it works anywhere — including offline.
-    if (window.__ART_DIGEST__ && Array.isArray(window.__ART_DIGEST__.items)) {
+    if (!date && window.__ART_DIGEST__ && Array.isArray(window.__ART_DIGEST__.items)) {
       return window.__ART_DIGEST__;
     }
-    const res = await fetch(`${FEED_URL}?t=${Date.now()}`, { cache: 'no-store' });
+    // A past day never changes once written, so let it be cached; only the
+    // live feed has to bypass the cache.
+    const url = date ? dayUrl(date) : `${FEED_URL}?t=${Date.now()}`;
+    const res = await fetch(url, date ? {} : { cache: 'no-store' });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const digest = await res.json();
     if (!Array.isArray(digest.items)) throw new Error('malformed digest');
     return digest;
+  }
+
+  /**
+   * Which days the archive holds. Written by the collector, because a static
+   * page cannot list a directory. Missing or unreadable is not an error — it
+   * only means the page offers today and nothing else.
+   */
+  async function fetchArchiveIndex() {
+    if (window.__ART_DIGEST_DAYS__) return window.__ART_DIGEST_DAYS__;
+    try {
+      const res = await fetch(`${ARCHIVE_INDEX_URL}?t=${Date.now()}`, { cache: 'no-store' });
+      if (!res.ok) return [];
+      const index = await res.json();
+      return (Array.isArray(index?.days) ? index.days : [])
+        .filter((d) => /^\d{4}-\d{2}-\d{2}$/.test(d?.date))
+        .sort((a, b) => b.date.localeCompare(a.date));
+    } catch {
+      return [];
+    }
   }
 
   /**
@@ -484,21 +592,75 @@
     const button = $('refresh');
     button.classList.add('spin');
     setNotice('');
+    // The picker needs the catalogue, but a missing catalogue must not stop the
+    // page loading — so this never throws and never blocks the digest.
+    const [days, result] = await Promise.all([
+      fetchArchiveIndex(),
+      fetchDigest(state.date).then(
+        (digest) => ({ digest }),
+        (error) => ({ error })
+      ),
+    ]);
+    state.days = days;
     try {
-      const digest = await fetchDigest();
+      if (result.error) throw result.error;
+      const { digest } = result;
       state.digest = digest;
       const age = (Date.now() - Date.parse(digest.generatedAt)) / 3.6e6;
-      setUpdated(`Updated ${timeAgo(digest.generatedAt)}`);
+      setUpdated(state.date ? dayLabel(state.date) : `Updated ${timeAgo(digest.generatedAt)}`);
       render();
-      if (age > STALE_AFTER_HOURS) await topUpLive('The collected digest is a while old, so this also pulled fresh Reddit picks.');
+      // A past day is a record of that day. Topping it up with today's Reddit
+      // would quietly rewrite history, so this only runs on the live feed.
+      if (!state.date && age > STALE_AFTER_HOURS) {
+        await topUpLive('The collected digest is a while old, so this also pulled fresh Reddit picks.');
+      }
     } catch (err) {
-      setUpdated('No digest yet');
-      state.digest = { items: [], sources: [] };
-      render();
-      await topUpLive(`Couldn't load the collected digest (${err.message}), so this is a live pull from Reddit only.`);
+      if (state.date) {
+        // A day that will not load is a dead end, not a reason to pull live
+        // Reddit and label it with that date.
+        setUpdated(dayLabel(state.date));
+        state.digest = { items: [], sources: [] };
+        render();
+        setNotice(`Couldn't load ${dayLabel(state.date)} (${err.message}). That day's file may be missing from the archive.`);
+      } else {
+        setUpdated('No digest yet');
+        state.digest = { items: [], sources: [] };
+        render();
+        await topUpLive(`Couldn't load the collected digest (${err.message}), so this is a live pull from Reddit only.`);
+      }
     } finally {
       button.classList.remove('spin');
     }
+  }
+
+  /**
+   * Show one day, or the live feed when date is null. The hash carries it so a
+   * day can be bookmarked, shared, and reached with the browser's back button.
+   */
+  async function showDay(date, { fromHash = false } = {}) {
+    const newest = state.days[0]?.date;
+    // Asking for the newest day is asking for the live feed, which is the same
+    // picks plus whatever a stale-feed top-up adds.
+    state.date = date && date !== newest ? date : null;
+    if (!fromHash) {
+      const hash = state.date ? `#${state.date}` : '';
+      if (hash !== window.location.hash) {
+        if (hash) window.location.hash = state.date;
+        else history.replaceState(null, '', window.location.pathname + window.location.search);
+      }
+    }
+    await load();
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  const dateFromHash = () => (/^#\d{4}-\d{2}-\d{2}$/.test(window.location.hash) ? window.location.hash.slice(1) : null);
+
+  /** Step through the archive; the list is newest first, so older is forward. */
+  function step(by) {
+    const showing = state.date || state.days[0]?.date;
+    const at = state.days.findIndex((d) => d.date === showing);
+    const next = state.days[at + by];
+    if (next) showDay(next.date);
   }
 
   async function topUpLive(message) {
@@ -535,5 +697,14 @@
     });
   });
   $('refresh').addEventListener('click', load);
+  $('day').addEventListener('change', (event) => showDay(event.target.value));
+  $('older').addEventListener('click', () => step(1));
+  $('newer').addEventListener('click', () => step(-1));
+  // Back and forward should move through the days, not out of the page.
+  window.addEventListener('hashchange', () => {
+    const wanted = dateFromHash();
+    if ((wanted || null) !== state.date) showDay(wanted, { fromHash: true });
+  });
+  state.date = dateFromHash();
   load();
 })();

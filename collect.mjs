@@ -8,6 +8,7 @@
  *
  *   data/latest.json          the feed the widget reads
  *   data/archive/<date>.json  one snapshot per run, kept for history
+ *   data/archive/index.json   which days exist, so the widget can offer them
  *   data/email.html           a ready-to-send HTML digest
  *
  * Zero dependencies, Node 20+. Runs in CI (see .github/workflows/art-digest.yml)
@@ -22,7 +23,7 @@
  *   REDDIT_CLIENT_ID/SECRET   use Reddit's OAuth API instead of the public JSON
  */
 
-import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { mkdir, readdir, readFile, writeFile } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
@@ -971,6 +972,46 @@ async function collectDanbooru(cfg) {
  * is not wired in here: this digest ranks on popularity first.
  */
 
+/**
+ * Which days the archive holds, newest first.
+ *
+ * A static page cannot list a directory, so a day of history is only reachable
+ * if something writes down that it exists. Every run rebuilds this from the
+ * files actually on disk rather than appending to it, so a day deleted by hand
+ * leaves the index and a day restored by hand rejoins it without ceremony.
+ *
+ * One summary line per day, not the picks themselves — the day's own file has
+ * those, and this is fetched on every page load.
+ */
+export async function buildArchiveIndex(dir, { read = readFile, list = readdir } = {}) {
+  let names;
+  try {
+    names = await list(dir);
+  } catch {
+    return { updatedAt: new Date().toISOString(), days: [] };
+  }
+  const days = [];
+  for (const name of names.filter((n) => /^\d{4}-\d{2}-\d{2}\.json$/.test(n)).sort().reverse()) {
+    const date = name.slice(0, 10);
+    try {
+      const day = JSON.parse(await read(join(dir, name), 'utf8'));
+      const items = Array.isArray(day.items) ? day.items : [];
+      days.push({
+        date,
+        generatedAt: day.generatedAt || `${date}T00:00:00.000Z`,
+        items: items.length,
+        nsfw: items.filter((i) => i.nsfw).length,
+        // Enough to label a day in the picker without opening it.
+        sources: [...new Set(items.map((i) => i.source))].sort(),
+      });
+    } catch {
+      // A truncated or half-written day is skipped rather than breaking the
+      // index for every other day.
+    }
+  }
+  return { updatedAt: new Date().toISOString(), days };
+}
+
 export const SOURCES = [
   { id: 'artstation', label: 'ArtStation', home: 'https://www.artstation.com', collect: collectArtStation },
   { id: 'reddit', label: 'Reddit', home: 'https://www.reddit.com', collect: collectReddit },
@@ -1488,6 +1529,11 @@ async function main() {
   const day = digest.generatedAt.slice(0, 10);
   await writeFile(join(CONFIG.outDir, 'latest.json'), json);
   await writeFile(join(CONFIG.outDir, 'archive', `${day}.json`), json);
+  // Written after the day it describes, so the index never advertises a file
+  // that is not there yet.
+  const archiveDir = join(CONFIG.outDir, 'archive');
+  const index = await buildArchiveIndex(archiveDir);
+  await writeFile(join(archiveDir, 'index.json'), `${JSON.stringify(index, null, 2)}\n`);
   await writeFile(join(CONFIG.outDir, 'email.html'), `${renderEmail(digest)}\n`);
   await writeFile(join(CONFIG.outDir, 'feed.xml'), renderFeed(digest));
 
