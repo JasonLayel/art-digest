@@ -1,6 +1,17 @@
 {
-  "updatedAt": "2026-11-07T18:02:28.505Z",
+  "updatedAt": "2026-11-08T18:21:40.176Z",
   "days": [
+    {
+      "date": "2026-11-08",
+      "generatedAt": "2026-11-08T18:21:40.159Z",
+      "items": 24,
+      "nsfw": 3,
+      "sources": [
+        "artstation",
+        "pixiv",
+        "reddit"
+      ]
+    },
     {
       "date": "2026-11-07",
       "generatedAt": "2026-11-07T18:02:28.484Z",
