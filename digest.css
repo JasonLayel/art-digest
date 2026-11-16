@@ -558,3 +558,29 @@ body {
 }
 
 .send-btn:hover { filter: brightness(1.08); }
+
+.send-btn.ghost {
+  background: transparent;
+  color: var(--accent);
+  border: 1px solid currentColor;
+  font-weight: 600;
+  margin-top: 18px;
+}
+
+.payload { margin: 10px 0 0; }
+.payload summary { cursor: pointer; color: var(--muted); font-size: 0.8rem; }
+.payload pre {
+  margin: 8px 0 0;
+  padding: 12px;
+  max-height: 320px;
+  overflow: auto;
+  background: #0d0a12;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  font-size: 0.72rem;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  word-break: break-word;
+  -webkit-user-select: all;
+  user-select: all;
+}

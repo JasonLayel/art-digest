@@ -42,6 +42,9 @@
       .filter(Boolean)
   );
 
+  /** A context that names a rank rather than a subject. */
+  const isPositional = (context) => /#\s*\d+|\branking\b|\bno\.?\s*\d+/i.test(String(context || ''));
+
   function wordsOf(text) {
     return String(text || '')
       .toLowerCase()
@@ -247,6 +250,10 @@
       const seen = counts.keep + counts.skip;
       const coversItsSource = seen / (sourceTotals.get(counts.source) || seen) >= 0.8;
       if (coversItsSource) continue;
+      // Pixiv labels every pick with where it placed — "Daily ranking #36" —
+      // which is a position, not a subject. Learning it would teach the digest
+      // to favour whatever lands at 36 tomorrow. Pixiv's signal is its share.
+      if (isPositional(counts.context)) continue;
       if (counts.keep && counts.keep >= counts.skip) {
         // Weighted by how many times you kept it, not just how reliably: the
         // sample shows most contexts once, so a rate alone scores everything
@@ -271,6 +278,14 @@
       else if (seen >= 4 && rate <= 0.25) sources[source] = 1; // kept, but on a short leash
     }
 
+    // A fandom name already carries as a context ("blue archive"), so its
+    // fragments in a title are noise that matches far too much: "blue",
+    // "archive", "impact", "white". Drop any word contained in a context we
+    // are already weighting.
+    const covered = new Set();
+    for (const name of Object.keys(contexts)) for (const word of wordsOf(name)) covered.add(word);
+    for (const word of Object.keys(keywords)) if (covered.has(word)) delete keywords[word];
+
     const trim = (table, max, floor = 0) =>
       Object.fromEntries(
         Object.entries(table)
@@ -280,9 +295,9 @@
       );
 
     return {
-      // A word has to turn up in two kept titles to count. One appearance is
-      // noise — "finally", "souvenir" — and the old profile was full of it.
-      keywords: trim(keywords, 120, 0.5),
+      // A word has to turn up in three kept titles to count. Two let through
+      // "souvenir" and "white", which match nothing anyone meant.
+      keywords: trim(keywords, 120, 1),
       artists: trim(artists, 60),
       contexts: trim(contexts, 60),
       sources,
@@ -365,17 +380,44 @@
       );
     }
 
-    const send = el('a', 'send-btn', 'Send this profile →');
+    // Two ways out, because the GitHub route needs a login and a phone browser
+    // signed out of GitHub turns that into a dead end with the profile stuck
+    // behind it.
+    const payload = JSON.stringify({ profile }, null, 2);
+
+    const copy = el('button', 'send-btn', '📋 Copy the profile');
+    copy.type = 'button';
+    copy.addEventListener('click', async () => {
+      try {
+        await navigator.clipboard.writeText(payload);
+        copy.textContent = '✓ Copied — paste it to Claude';
+      } catch {
+        // Clipboard access is refused in plenty of mobile contexts; the text
+        // is on the page below either way, so this is never a dead end.
+        copy.textContent = 'Select the text below and copy it';
+      }
+      box.classList.remove('hidden');
+    });
+    panel.append(copy);
+    panel.append(
+      el('p', 'fine', 'No sign-in needed. Paste it into the chat and it gets applied for you — this is the easy one on a phone.')
+    );
+
+    const box = el('details', 'payload hidden');
+    const summary = el('summary', null, 'Show the profile text');
+    box.append(summary);
+    const pre = el('pre', null, payload);
+    box.append(pre);
+    panel.append(box);
+    summary.addEventListener('click', () => box.classList.remove('hidden'));
+
+    const send = el('a', 'send-btn ghost', 'Or open a GitHub issue →');
     send.href = issueUrl(profile, counts);
     send.target = '_blank';
     send.rel = 'noopener noreferrer';
     panel.append(send);
     panel.append(
-      el(
-        'p',
-        'fine',
-        'That opens a prefilled GitHub issue. Submit it and the profile is replaced within a minute; tomorrow\'s digest uses it.'
-      )
+      el('p', 'fine', 'Applies itself within a minute, but needs you signed in to GitHub in this browser.')
     );
 
     const again = el('button', 'chip', '↻ Rate the rest');

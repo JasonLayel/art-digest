@@ -1202,6 +1202,19 @@ test('profile: source shares are bounded, and zero survives', () => {
   assert.ok(!('danbooru' in profile.sources) && !('bogus' in profile.sources));
 });
 
+test('profile: a rank is not a subject', () => {
+  // Pixiv labels every pick with where it placed. Learning "Daily ranking #36"
+  // teaches the digest to favour whatever lands at 36 tomorrow, which is noise
+  // dressed as a preference — it reached a real profile before this was caught.
+  const positional = (context) => /#\s*\d+|\branking\b|\bno\.?\s*\d+/i.test(String(context || ''));
+  for (const bad of ['Daily ranking #36', 'daily ranking #1', 'Ranking', 'No. 4', '#12']) {
+    assert.ok(positional(bad), `${bad} should be rejected as positional`);
+  }
+  for (const good of ['r/ImaginaryArchitecture', 'blue archive', 'genshin impact', 'Trending', 'chainsaw man']) {
+    assert.ok(!positional(good), `${good} is a real subject and must survive`);
+  }
+});
+
 test('profile: a calibration replaces rather than adds', () => {
   const body = ['Replace the profile with this:', '```json', JSON.stringify({
     profile: { keywords: { brutalist: 3 }, artists: {}, contexts: { 'r/ImaginaryArchitecture': 3 }, mute: ['blue archive'] },
