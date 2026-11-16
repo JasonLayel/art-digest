@@ -42,6 +42,13 @@
       .filter(Boolean)
   );
 
+  /**
+   * Danbooru tags an unknown artist "anon", and the gallery shows it like a
+   * name. Learned as one it matched four unrelated people on the first run.
+   */
+  const PLACEHOLDER_ARTISTS = new Set(['anon', 'anonymous', 'unknown', 'various', 'n/a', 'none', 'artist request', 'deleted']);
+  const isPlaceholderArtist = (name) => PLACEHOLDER_ARTISTS.has(String(name || '').trim().toLowerCase().replace(/^u\//, ''));
+
   /** A context that names a rank rather than a subject. */
   const isPositional = (context) => /#\s*\d+|\branking\b|\bno\.?\s*\d+/i.test(String(context || ''));
 
@@ -222,7 +229,9 @@
     }
 
     for (const item of kept) {
-      if (item.artist) bump(artists, String(item.artist).replace(/^u\//, ''), 1);
+      if (item.artist && !isPlaceholderArtist(item.artist)) {
+        bump(artists, String(item.artist).replace(/^u\//, ''), 1);
+      }
       for (const word of wordsOf(item.title)) bump(keywords, word, 0.5);
     }
 

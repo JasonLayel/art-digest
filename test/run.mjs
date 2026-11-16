@@ -647,6 +647,19 @@ test('taste: a named artist counts for more than a matched word', () => {
   assert.deepEqual(byArtist.matched, ['Dmitriy Kuzin']);
 });
 
+test('taste: an artist name matches a whole name, not any substring', () => {
+  // "anon" is Danbooru's tag for an unknown artist. Learned as a name it
+  // matched betanonbeet, Anon_Ymou5, "anon nsfw va" and "anna anon" — four
+  // people who were never the one meant.
+  const taste = { artists: { anon: 1, 'Wojtek Fus': 1 }, keywords: {}, contexts: {}, mute: [] };
+  const hits = (artist) => affinityFor({ title: '', artist, context: '' }, taste).matched;
+  assert.deepEqual(hits('betanonbeet'), [], 'not a substring of a longer word');
+  assert.deepEqual(hits('Anon_Ymou5'), [], 'nor one glued on with an underscore');
+  assert.deepEqual(hits('anon'), ['anon'], 'the whole name still matches');
+  assert.deepEqual(hits('u/anon'), ['anon'], 'including through a reddit prefix');
+  assert.deepEqual(hits('Wojtek Fus'), ['Wojtek Fus'], 'and a real two-word name');
+});
+
 test('taste: single keywords match whole words only', () => {
   // "art" must not match "ArtStation", or every piece scores for nothing.
   assert.deepEqual(affinityFor({ title: 'Found on ArtStation', artist: 'x', context: '' }, TASTE).matched, []);

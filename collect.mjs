@@ -1186,7 +1186,15 @@ export function affinityFor(item, taste = EMPTY_TASTE, { saturation = 6 } = {}) 
   const artist = String(item.artist || '').toLowerCase().replace(/^u\//, '');
   for (const [name, weight] of Object.entries(taste.artists || {})) {
     const known = name.toLowerCase();
-    if (known && (artist === known || artist.includes(known))) {
+    if (!known) continue;
+    // A bare substring made "anon" match betanonbeet, Anon_Ymou5 and two other
+    // people who were never the artist meant. A name has to be the whole thing
+    // or a whole word inside it.
+    const hit =
+      artist === known ||
+      (artist.includes(known) &&
+        new RegExp(`(^|[^\\p{L}\\p{N}_])${known.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}([^\\p{L}\\p{N}_]|$)`, 'u').test(artist));
+    if (hit) {
       total += (Number(weight) || 1) * 3;
       matched.push(name);
     }
