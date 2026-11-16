@@ -396,20 +396,31 @@
         // is on the page below either way, so this is never a dead end.
         copy.textContent = 'Select the text below and copy it';
       }
-      box.classList.remove('hidden');
     });
     panel.append(copy);
     panel.append(
       el('p', 'fine', 'No sign-in needed. Paste it into the chat and it gets applied for you — this is the easy one on a phone.')
     );
 
-    const box = el('details', 'payload hidden');
-    const summary = el('summary', null, 'Show the profile text');
-    box.append(summary);
-    const pre = el('pre', null, payload);
-    box.append(pre);
+    // Shown open, not folded away. Sixty ratings got stranded on a phone once
+    // because the only way to see them was behind a toggle and a login.
+    const box = el('div', 'payload');
+    box.append(el('p', 'fine', 'Or select this and copy it by hand:'));
+    box.append(el('pre', null, payload));
     panel.append(box);
-    summary.addEventListener('click', () => box.classList.remove('hidden'));
+
+    // Phones have a native share sheet, which is the easy way to get text from
+    // the device you rated on to the one you are typing on.
+    if (navigator.share) {
+      const share = el('button', 'send-btn ghost', '↗ Send it somewhere');
+      share.type = 'button';
+      share.addEventListener('click', () => {
+        navigator.share({ title: 'Art digest profile', text: payload }).catch(() => {
+          /* dismissed, which is not an error */
+        });
+      });
+      panel.append(share);
+    }
 
     const send = el('a', 'send-btn ghost', 'Or open a GitHub issue →');
     send.href = issueUrl(profile, counts);
