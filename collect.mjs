@@ -1102,15 +1102,30 @@ export function rankItems(
     return list[round];
   };
 
+  // How many turns a source gets per pass. One each is the default and was the
+  // only setting for two months — which is why Pixiv and Danbooru held 47% of
+  // every digest while matching the profile once in 1,464 picks. A calibration
+  // can set this per source: 0 drops it, 2 gives it a double share.
+  const shares = taste?.sources || {};
+  const turnsFor = (source) => {
+    const weight = shares[source];
+    if (weight === undefined) return 1;
+    const n = Number(weight);
+    return Number.isFinite(n) && n >= 0 ? Math.min(4, Math.round(n)) : 1;
+  };
+  const live = order.filter((source) => turnsFor(source) > 0);
+
   for (let round = 0; out.length < limit; round++) {
     let added = 0;
-    for (const source of order) {
-      const item = nextFrom(source, round);
-      if (!item || used.has(item.id)) continue;
-      used.add(item.id);
-      taken.get(source).add(item.context || '');
-      out.push(item);
-      added++;
+    for (const source of live) {
+      for (let turn = 0; turn < turnsFor(source) && out.length < limit; turn++) {
+        const item = nextFrom(source, round);
+        if (!item || used.has(item.id)) continue;
+        used.add(item.id);
+        taken.get(source).add(item.context || '');
+        out.push(item);
+        added++;
+      }
       if (out.length >= limit) break;
     }
     if (!added) break;

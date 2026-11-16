@@ -6,7 +6,8 @@
 
 import assert from 'node:assert/strict';
 import { collectInlineImages } from '../send-email.mjs';
-import { extractLikes, mergeLikes } from '../tools/merge-taste.mjs';
+import { extractLikes, extractProfile, mergeLikes } from '../tools/merge-taste.mjs';
+import { sampleItems } from '../tools/build-calibration.mjs';
 import {
   normalizeReddit,
   normalizeRedditRss,
@@ -1106,6 +1107,141 @@ test('email: renders every item, escapes markup, and links the widget', () => {
 });
 
 /* ----------------------------------------------------------- diagnostics */
+
+/* -------------------------------------------------------------- calibration */
+
+const ratingItem = (source, context, day, n) => ({
+  id: `${source}:${context}:${n}`,
+  source,
+  context,
+  day,
+  title: `${context} piece ${n}`,
+  artist: `artist-${n}`,
+});
+
+test('calibration sample: every source gets an equal turn', () => {
+  // A straight sample would mirror the digest, which is half anime fan art —
+  // and would teach the profile that that is the question being asked.
+  const items = [
+    ...Array.from({ length: 300 }, (_, i) => ratingItem('pixiv', `Daily ranking #${i}`, '2026-09-16', i)),
+    ...Array.from({ length: 300 }, (_, i) => ratingItem('artstation', 'Trending', '2026-09-17', i)),
+    ...Array.from({ length: 60 }, (_, i) => ratingItem('reddit', `r/sub${i % 6}`, '2026-09-18', i)),
+  ];
+  const sample = sampleItems(items, 60);
+  const bySource = {};
+  for (const i of sample) bySource[i.source] = (bySource[i.source] || 0) + 1;
+  assert.equal(sample.length, 60);
+  for (const source of ['pixiv', 'artstation', 'reddit']) {
+    assert.ok(bySource[source] >= 18, `${source} got ${bySource[source]}, expected a third-ish`);
+  }
+});
+
+test('calibration sample: a source with one context still fills its share', () => {
+  // ArtStation files all 388 of its picks under "Trending". Capping each
+  // context cost it its whole turn and handed the slots to Pixiv, which names
+  // every pick differently.
+  const items = [
+    ...Array.from({ length: 100 }, (_, i) => ratingItem('artstation', 'Trending', `2026-09-${10 + (i % 20)}`, i)),
+    ...Array.from({ length: 100 }, (_, i) => ratingItem('pixiv', `Daily ranking #${i}`, '2026-09-16', i)),
+  ];
+  const sample = sampleItems(items, 40);
+  const artstation = sample.filter((i) => i.source === 'artstation').length;
+  assert.ok(artstation >= 15, `artstation got ${artstation}, expected about half of 40`);
+});
+
+test('calibration sample: never repeats a piece', () => {
+  const items = Array.from({ length: 40 }, (_, i) => ratingItem('reddit', `r/sub${i % 3}`, '2026-09-18', i));
+  const sample = sampleItems(items, 200);
+  assert.equal(new Set(sample.map((i) => i.id)).size, sample.length);
+  assert.ok(sample.length <= 40, 'and cannot invent more than it was given');
+});
+
+test('calibration sample: carries only what a card needs', () => {
+  const sample = sampleItems([{ ...ratingItem('reddit', 'r/art', '2026-09-18', 1), heat: 93, affinity: 0.5 }], 1);
+  assert.deepEqual(Object.keys(sample[0]).sort(), ['artist', 'context', 'id', 'nsfw', 'source', 'thumb', 'title', 'url']);
+});
+
+test('ranking: a source share decides how much of the digest a site gets', () => {
+  // The lever the archive pointed at: for two months every source took a sixth
+  // of every digest, including the two that matched the profile once in 1,464
+  // picks.
+  const of = (source) => makeItems(source, 10, 100);
+  const pools = { reddit: of('reddit'), pixiv: of('pixiv'), danbooru: of('danbooru'), artstation: of('artstation') };
+  const tally = (list) => list.reduce((acc, i) => ({ ...acc, [i.source]: (acc[i.source] || 0) + 1 }), {});
+
+  const even = tally(rankItems(pools, { limit: 24, now: NOW }));
+  assert.deepEqual(even, { reddit: 6, pixiv: 6, danbooru: 6, artstation: 6 }, 'one turn each by default');
+
+  const tuned = tally(
+    rankItems(pools, { limit: 24, now: NOW, taste: { sources: { pixiv: 0, danbooru: 0, reddit: 2, artstation: 2 } } })
+  );
+  assert.ok(!tuned.pixiv && !tuned.danbooru, 'a share of 0 drops the source');
+  assert.ok(tuned.reddit > 6 && tuned.artstation > 6, 'and the rest take the freed slots');
+
+  const leashed = tally(
+    rankItems(pools, { limit: 24, now: NOW, taste: { sources: { pixiv: 1, danbooru: 1, reddit: 3, artstation: 3 } } })
+  );
+  assert.ok(leashed.pixiv < leashed.reddit, 'a smaller share still appears, just less often');
+});
+
+test('ranking: a source nobody rated keeps its usual share', () => {
+  // A calibration only names the sources it saw. Anything else must carry on
+  // as before rather than vanish because it went unmentioned.
+  const pools = { reddit: makeItems('reddit', 10, 100), bluesky: makeItems('bluesky', 10, 100) };
+  const list = rankItems(pools, { limit: 12, now: NOW, taste: { sources: { reddit: 2 } } });
+  assert.ok(list.some((i) => i.source === 'bluesky'), 'an unmentioned source is still collected');
+});
+
+test('profile: source shares are bounded, and zero survives', () => {
+  const body = `\`\`\`json\n${JSON.stringify({
+    profile: { contexts: { 'r/good': 2 }, sources: { pixiv: 0, reddit: 99, danbooru: -3, bogus: 'two' } },
+  })}\n\`\`\``;
+  const profile = extractProfile(body);
+  assert.equal(profile.sources.pixiv, 0, 'zero means dropped and must not be filtered out as falsy');
+  assert.equal(profile.sources.reddit, 4, 'shares are capped');
+  assert.ok(!('danbooru' in profile.sources) && !('bogus' in profile.sources));
+});
+
+test('profile: a calibration replaces rather than adds', () => {
+  const body = ['Replace the profile with this:', '```json', JSON.stringify({
+    profile: { keywords: { brutalist: 3 }, artists: {}, contexts: { 'r/ImaginaryArchitecture': 3 }, mute: ['blue archive'] },
+  }), '```'].join('\n');
+  const profile = extractProfile(body);
+  assert.deepEqual(profile.keywords, { brutalist: 3 });
+  assert.deepEqual(profile.contexts, { 'r/ImaginaryArchitecture': 3 });
+  assert.deepEqual(profile.mute, ['blue archive']);
+});
+
+test('profile: untrusted weights and lists are clamped, not trusted', () => {
+  // Anyone can open an issue on a public repo. The workflow checks the author;
+  // this checks the content regardless.
+  const body = ['```json', JSON.stringify({
+    profile: {
+      keywords: { huge: 9e9, negative: -5, '': 3, ok: 2, nan: 'three' },
+      artists: { ['x'.repeat(400)]: 4 },
+      contexts: { 'r/good': 2 },
+      mute: Array.from({ length: 200 }, (_, i) => `m${i}`),
+    },
+  }), '```'].join('\n');
+  const profile = extractProfile(body);
+  assert.equal(profile.keywords.huge, 10, 'weights top out');
+  assert.ok(!('negative' in profile.keywords) && !('' in profile.keywords) && !('nan' in profile.keywords));
+  assert.equal(profile.keywords.ok, 2);
+  assert.equal(Object.keys(profile.artists)[0].length, 120, 'names are cut, not rejected');
+  assert.ok(profile.mute.length <= 40, 'the mute list is bounded');
+});
+
+test('profile: a body with no profile block is not a profile', () => {
+  assert.equal(extractProfile('no block here'), null);
+  assert.equal(extractProfile('```json\n{"likes":[{"id":"a"}]}\n```'), null, 'a likes block is not one');
+  assert.equal(extractProfile('```json\n{ not json\n```'), null);
+});
+
+test('profile: one with nothing positive in it is refused', () => {
+  // Otherwise a mute-only profile would silence the digest rather than steer it.
+  const body = `\`\`\`json\n${JSON.stringify({ profile: { mute: ['everything'] } })}\n\`\`\``;
+  assert.equal(extractProfile(body), null);
+});
 
 /* ------------------------------------------------------------ archive index */
 

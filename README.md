@@ -229,6 +229,58 @@ you would rather taste led.
 
 Every pick records what it matched, so the gallery can say why it is there.
 
+#### Calibrating it
+
+The profile this repo shipped with was guessed from a couple of probes, and
+sixty-one days of digests judged it: **93% of 1,464 picks matched none of it**,
+and only 3.6% matched on subject. Two sources told the story —
+
+| | picks | matched the profile |
+| --- | --- | --- |
+| Reddit | 391 | 60 (15%) |
+| ArtStation | 388 | 41 (11%) |
+| Pixiv | 378 | 1 (0%) |
+| Danbooru | 306 | 0 (0%) |
+
+Pixiv and Danbooru took 47% of every digest and matched once in two months,
+because the round-robin gives every source the same share whether or not it can
+carry your subjects. More keywords were never going to fix that: ArtStation
+titles are "Marsh Fortress", not "architecture", which is why keyword matching
+fired on 53 picks in sixty-one days.
+
+So `calibrate.html` asks about real pieces instead. `tools/build-calibration.mjs`
+draws a sample from the archive — equal shares per source, and within a source
+one pick per context before any repeats — and the page shows them one at a time
+to keep or skip. It runs on the same origin as the gallery, so hearts already
+sitting in `localStorage` are read straight out of it and counted as keeps
+rather than asked about again.
+
+What the answers produce:
+
+- **A share per source**, which is the lever that matters: `0` drops a source
+  from collection, `2` doubles its slots. A source is only dropped on real
+  evidence — asked about at least four times and kept none — because that is
+  how a whole medium disappears.
+- **Contexts** you kept, weighted by how many times, not just how reliably. A
+  context covering nearly all of its source's ratings is skipped: ArtStation
+  files everything under "Trending", and weighting that would boost the source
+  twice.
+- **Subjects** from the titles you kept, minus any word that also showed up on
+  a skip, and only words appearing in two kept titles — one appearance is noise.
+- **Mutes**, for a context asked about at least twice and kept zero times.
+
+The result is shown in full before anything is sent, because dropping a source
+is not something to discover later. Sending opens the same kind of prefilled
+issue as the hearts do; `tools/merge-taste.mjs` tells the two apart and a
+calibration **replaces** the profile rather than adding to it — merging into a
+profile the evidence says is wrong keeps it wrong.
+
+Rebuild the sample whenever you want a fresh set:
+
+```sh
+node tools/build-calibration.mjs 60
+```
+
 #### Teaching it
 
 The gallery is a static page with nowhere to POST to, so the ♡ on each card

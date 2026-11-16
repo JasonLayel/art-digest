@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="theme-color" content="#15101c">
+  <meta name="description" content="Teach the art digest what to look for, by reacting to what it has already shown you.">
+  <title>Calibrate · Daily Digital Art Digest</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 32 32%27%3E%3Ctext y=%2726%27 font-size=%2726%27%3E%F0%9F%8E%9B%3C/text%3E%3C/svg%3E">
+  <link rel="stylesheet" href="digest.css">
+</head>
+<body class="calibrating">
+  <header class="masthead">
+    <div class="masthead-text">
+      <h1>🎛 Calibrate</h1>
+      <p class="sub">Keep or skip. Sixty real pieces the digest has already shown you — your answers rewrite the profile.</p>
+    </div>
+    <div class="masthead-meta">
+      <span id="progress" class="updated">Loading…</span>
+      <a class="icon-btn linkish" href="./" title="Back to the digest">←</a>
+    </div>
+  </header>
+
+  <p id="imported" class="notice hidden" role="status"></p>
+
+  <main class="rater">
+    <div id="stage" class="stage" aria-live="polite">
+      <div class="skeleton tall"></div>
+    </div>
+
+    <div id="verdict" class="verdict hidden">
+      <button id="skip" class="judge judge-no" type="button">✕ <span>Not for me</span></button>
+      <button id="keep" class="judge judge-yes" type="button">♥ <span>Keep</span></button>
+    </div>
+    <div id="helpers" class="helpers hidden">
+      <button id="undo" class="chip" type="button">↩ Undo</button>
+      <button id="blur" class="chip" type="button">👁 Blur 18+</button>
+      <button id="finish" class="chip" type="button">Finish early →</button>
+      <span class="keys">keyboard: ← skip · → keep · ⌫ undo</span>
+    </div>
+
+    <section id="result" class="result hidden"></section>
+  </main>
+
+  <footer class="foot">
+    <p class="fine">
+      Nothing is sent anywhere until you press the button at the end — and that
+      only opens a prefilled issue for you to submit yourself.
+    </p>
+  </footer>
+
+  <script src="calibrate.js"></script>
+</body>
+</html>
