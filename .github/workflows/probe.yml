@@ -9,6 +9,10 @@ on:
         description: 'ArtStation username to probe (blank to skip)'
         required: false
         default: 'jasonlayel'
+      artstation_sorting:
+        description: 'Sample search twice to see if sorting=date really orders by upload (slow)'
+        required: false
+        default: 'false'
       artstation_search:
         description: 'Ask what ArtStation search will accept (sorting, filters, subjects)'
         required: false
@@ -45,6 +49,10 @@ jobs:
           # requests, the way PIXIV_SESSION does for Pixiv.
           ARTSTATION_COOKIE: ${{ secrets.ARTSTATION_COOKIE }}
         run: node tools/probe-artstation.mjs "${{ inputs.artstation_user }}"
+
+      - name: Is ArtStation search really orderable by date?
+        if: inputs.artstation_sorting == 'true'
+        run: node tools/probe-artstation-sorting.mjs
 
       - name: What can ArtStation search be asked for?
         if: inputs.artstation_search == 'true'
