@@ -1,11 +1,11 @@
 {
-  "updatedAt": "2026-11-17T20:03:17.525Z",
+  "updatedAt": "2026-11-17T20:34:30.658Z",
   "days": [
     {
       "date": "2026-11-17",
-      "generatedAt": "2026-11-17T20:03:17.506Z",
+      "generatedAt": "2026-11-17T20:34:30.643Z",
       "items": 24,
-      "nsfw": 7,
+      "nsfw": 6,
       "sources": [
         "artstation",
         "artsubjects",
