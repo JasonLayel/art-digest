@@ -9,6 +9,10 @@ on:
         description: 'ArtStation username to probe (blank to skip)'
         required: false
         default: 'jasonlayel'
+      probe_subjects:
+        description: 'Comma-separated subjects to test (blank uses the shipped set)'
+        required: false
+        default: ''
       artstation_sorting:
         description: 'Sample search twice to see if sorting=date really orders by upload (slow)'
         required: false
@@ -58,6 +62,7 @@ jobs:
         if: inputs.artstation_search == 'true'
         env:
           ARTSTATION_COOKIE: ${{ secrets.ARTSTATION_COOKIE }}
+          PROBE_SUBJECTS: ${{ inputs.probe_subjects }}
         run: node tools/probe-artstation-search.mjs
 
       - name: Can an ArtStation artwork page be dated?

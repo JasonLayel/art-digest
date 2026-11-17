@@ -52,16 +52,23 @@ const q = (s) => encodeURIComponent(s);
 const pause = () => new Promise((r) => setTimeout(r, 1300));
 
 // The subjects actually wanted, not the ones this repo guessed in September.
-const SUBJECTS = [
-  'environment concept art',
-  'architecture',
-  'archviz interior',
-  '3d character',
-  'stylized character',
-  'realistic character portrait',
-  'character design sheet',
-  'sci-fi environment',
-];
+const SUBJECTS = (process.env.PROBE_SUBJECTS || '')
+  .split(',')
+  .map((s) => s.trim())
+  .filter(Boolean)
+  .slice(0, 12);
+if (!SUBJECTS.length) {
+  SUBJECTS.push(
+    'environment concept art',
+    'architecture',
+    'archviz interior',
+    '3d character',
+    'stylized character',
+    'realistic character portrait',
+    'character design sheet',
+    'sci-fi environment'
+  );
+}
 
 const out = [`## ArtStation search — what can it be asked for?`, ''];
 
