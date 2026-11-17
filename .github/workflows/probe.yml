@@ -9,6 +9,10 @@ on:
         description: 'ArtStation username to probe (blank to skip)'
         required: false
         default: 'jasonlayel'
+      artstation_search:
+        description: 'Ask what ArtStation search will accept (sorting, filters, subjects)'
+        required: false
+        default: 'false'
       artstation_dates:
         description: 'Open trending artwork pages as HTML and look for upload dates'
         required: false
@@ -41,6 +45,12 @@ jobs:
           # requests, the way PIXIV_SESSION does for Pixiv.
           ARTSTATION_COOKIE: ${{ secrets.ARTSTATION_COOKIE }}
         run: node tools/probe-artstation.mjs "${{ inputs.artstation_user }}"
+
+      - name: What can ArtStation search be asked for?
+        if: inputs.artstation_search == 'true'
+        env:
+          ARTSTATION_COOKIE: ${{ secrets.ARTSTATION_COOKIE }}
+        run: node tools/probe-artstation-search.mjs
 
       - name: Can an ArtStation artwork page be dated?
         if: inputs.artstation_dates == 'true'
