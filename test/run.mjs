@@ -1318,7 +1318,14 @@ test('artstation subjects: falls back to the shipped subjects', async () => {
     search: async (query) => { asked.push(query); return { data: [] }; },
   });
   assert.deepEqual(asked, DEFAULT_SUBJECTS);
-  assert.ok(DEFAULT_SUBJECTS.some((s) => /architect/.test(s)) && DEFAULT_SUBJECTS.some((s) => /character/.test(s)));
+  // The shipped list is derived from a real likes export, so what matters is
+  // that it still spans the ground it was built to cover: built environments,
+  // and characters that are not anime. The exact wording moves with the data.
+  const built = /interior|temple|castle|city|architect|station|environment/;
+  const people = /character|portrait/;
+  assert.ok(DEFAULT_SUBJECTS.filter((s) => built.test(s)).length >= 4, 'environments and architecture');
+  assert.ok(DEFAULT_SUBJECTS.some((s) => people.test(s)), 'and character work');
+  assert.equal(new Set(DEFAULT_SUBJECTS).size, DEFAULT_SUBJECTS.length, 'no duplicates');
 });
 
 test('seen ids: gathers every piece the archive holds', async () => {
