@@ -6,7 +6,10 @@
  * is already signed in, so it can simply ask.
  *
  * HOW TO RUN
- *   1. Open https://www.artstation.com/<you>/likes while signed in.
+ *   1. Open your likes page while signed in. Note that a saved collection
+ *      lives at /<you>/collections/likes and is served by a different
+ *      endpoint than a profile's own likes — check which one answers before
+ *      trusting a run that returns nothing.
  *   2. Open the console: F12, or Ctrl+Shift+J (Cmd+Opt+J on a Mac).
  *   3. Paste this whole file in and press Enter.
  *   4. It prints a JSON block and copies it to your clipboard. Paste it back.
@@ -63,6 +66,18 @@
     await new Promise((r) => setTimeout(r, 400)); // be polite to the API
   }
 
+  // Saying "copied" after copying an empty array is worse than failing: the
+  // first run of this reported success having fetched nothing, because the
+  // likes live under /collections/likes and this asked /users/<u>/likes.json.
+  if (!likes.length) {
+    console.error(
+      'Nothing came back. Check that you are signed in, that the username is right, ' +
+        'and that this endpoint is the one your likes page actually uses — a collection ' +
+        'is served from a different path than a profile.'
+    );
+    return null;
+  }
+
   const out = JSON.stringify({ artstationLikes: likes }, null, 1);
   console.log(`\nDone: ${likes.length} liked pieces from ${new Set(likes.map((l) => l.username)).size} artists.`);
   try {
@@ -70,7 +85,7 @@
     console.log('Copied to your clipboard — paste it back to Claude.');
   } catch {
     console.log('Copy the block below:');
+    console.log(out);
   }
-  console.log(out);
   return out;
 })();
