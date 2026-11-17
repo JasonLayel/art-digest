@@ -27,6 +27,9 @@ import {
   ADULT_SUBS,
   rankItems,
   buildArchiveIndex,
+  collectArtStationSubjects,
+  collectSeenIds,
+  DEFAULT_SUBJECTS,
   resolveThumbnails,
   renderEmail,
   renderFeed,
@@ -1120,6 +1123,121 @@ test('email: renders every item, escapes markup, and links the widget', () => {
 });
 
 /* ----------------------------------------------------------- diagnostics */
+
+/* ---------------------------------------------------- artstation subjects */
+
+const subjectRow = (hash, title) => ({
+  hash_id: hash,
+  title,
+  url: `https://www.artstation.com/artwork/${hash}`,
+  smaller_square_cover_url: `https://cdn.artstation.com/p/assets/images/images/0/smaller_square/${hash}.jpg`,
+  user: { full_name: `artist ${hash}`, username: `a${hash}` },
+});
+
+test('artstation subjects: asks for each subject by name and keeps the order', async () => {
+  // Trending is whatever the whole site is looking at. Architecture and 3D
+  // character work only arrive if they are asked for, and search is the one
+  // parameter ArtStation honours.
+  const asked = [];
+  const { items, note } = await collectArtStationSubjects(
+    { artstationSubjects: ['architecture', '3d character'] },
+    {
+      search: async (query) => {
+        asked.push(query);
+        return { data: [subjectRow(`${query[0]}1`, `${query} one`), subjectRow(`${query[0]}2`, `${query} two`)] };
+      },
+    }
+  );
+  assert.deepEqual(asked, ['architecture', '3d character'], 'one request per subject');
+  assert.equal(items.length, 4);
+  assert.deepEqual([...new Set(items.map((i) => i.context))], ['architecture', '3d character'], 'the subject is the context, so the round-robin spreads across them');
+  assert.ok(items[0].value > items[1].value, 'position in the ranking carries through');
+  assert.match(items[0].scoreLabel, /most liked for "architecture"/);
+  assert.match(note, /2 subjects/);
+});
+
+test('artstation subjects: never claims the work is new', async () => {
+  // ArtStation publishes no dates, and sorting=date is unproven. This is the
+  // best work on a subject, not today's, and the scoring has to know that.
+  const { items } = await collectArtStationSubjects(
+    { artstationSubjects: ['architecture'] },
+    { search: async () => ({ data: [subjectRow('x1', 'A hall')] }) }
+  );
+  assert.equal(items[0].postedAt, null);
+  assert.equal(items[0].freshBy, undefined, 'no freshness credit, unlike the trending feed');
+  const [ranked] = rankItems({ artsubjects: items }, { limit: 5, windowHours: 48, now: NOW });
+  assert.equal(ranked.heat, 80, 'popularity alone, nothing for a recency it cannot show');
+  assert.equal(ranked.dateKnown, false);
+});
+
+test('artstation subjects: walks past what has already been shown', async () => {
+  // Top-rated work does not change, so without this the same eight pieces
+  // would arrive every single day forever.
+  const rows = [subjectRow('seen1', 'Old favourite'), subjectRow('fresh1', 'Not yet shown')];
+  const { items, note } = await collectArtStationSubjects(
+    { artstationSubjects: ['architecture'] },
+    { search: async () => ({ data: rows }), seen: new Set(['artsubject:seen1']) }
+  );
+  assert.deepEqual(items.map((i) => i.title), ['Not yet shown']);
+  assert.match(note, /1 already shown/);
+});
+
+test('artstation subjects: one failing subject does not lose the others', async () => {
+  const { items, note } = await collectArtStationSubjects(
+    { artstationSubjects: ['architecture', 'broken'] },
+    {
+      search: async (query) => {
+        if (query === 'broken') throw new Error('HTTP 500');
+        return { data: [subjectRow('ok1', 'Fine')] };
+      },
+    }
+  );
+  assert.equal(items.length, 1);
+  assert.match(note, /failed: broken/);
+});
+
+test('artstation subjects: every subject failing is an error, not an empty success', async () => {
+  await assert.rejects(
+    collectArtStationSubjects(
+      { artstationSubjects: ['a', 'b'] },
+      { search: async () => { throw new Error('HTTP 403'); } }
+    ),
+    /HTTP 403/
+  );
+});
+
+test('artstation subjects: falls back to the shipped subjects', async () => {
+  const asked = [];
+  await collectArtStationSubjects({}, {
+    search: async (query) => { asked.push(query); return { data: [] }; },
+  });
+  assert.deepEqual(asked, DEFAULT_SUBJECTS);
+  assert.ok(DEFAULT_SUBJECTS.some((s) => /architect/.test(s)) && DEFAULT_SUBJECTS.some((s) => /character/.test(s)));
+});
+
+test('seen ids: gathers every piece the archive holds', async () => {
+  const seen = await collectSeenIds('data/archive', {
+    list: async () => ['2026-09-16.json', '2026-09-17.json', 'index.json', 'notes.md'],
+    read: async (path) =>
+      path.includes('2026-09-16')
+        ? JSON.stringify({ items: [{ id: 'reddit:a' }, { id: 'pixiv:b' }] })
+        : JSON.stringify({ items: [{ id: 'reddit:a' }, { id: 'danbooru:c' }] }),
+  });
+  assert.deepEqual([...seen].sort(), ['danbooru:c', 'pixiv:b', 'reddit:a'], 'deduped, and index.json is not a day');
+});
+
+test('seen ids: a broken day costs its own ids, not the filter', async () => {
+  const seen = await collectSeenIds('data/archive', {
+    list: async () => ['2026-09-16.json', '2026-09-17.json'],
+    read: async (path) => (path.includes('16') ? '{"items":[{"id":"a"}]' : JSON.stringify({ items: [{ id: 'b' }] })),
+  });
+  assert.deepEqual([...seen], ['b']);
+});
+
+test('seen ids: no archive at all is nothing seen, not a crash', async () => {
+  const seen = await collectSeenIds('nope', { list: async () => { throw new Error('ENOENT'); } });
+  assert.equal(seen.size, 0);
+});
 
 /* -------------------------------------------------------------- calibration */
 

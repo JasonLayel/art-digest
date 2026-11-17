@@ -20,6 +20,7 @@
     deviantart: { label: 'DeviantArt', color: 'var(--deviantart)' },
     bluesky: { label: 'Bluesky', color: 'var(--bluesky)' },
     danbooru: { label: 'Danbooru', color: 'var(--danbooru)' },
+    artsubjects: { label: 'Your subjects', color: 'var(--subjects)' },
   };
 
   const $ = (id) => document.getElementById(id);

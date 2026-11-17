@@ -78,6 +78,10 @@ const CONFIG = {
     ? splitList(process.env.ART_DIGEST_TAGS)
     : ['conceptart', 'characterart', 'dnd', 'fanart', 'digitalart'],
   sources: splitList(process.env.ART_DIGEST_SOURCES),
+  // What to ask ArtStation for by name. Search is the only filter it honours,
+  // so these decide whether architecture and 3D character work reach the
+  // digest at all.
+  artstationSubjects: splitList(process.env.ART_DIGEST_SUBJECTS),
   // How many heat points a perfect taste match is worth. Popularity still
   // leads on a wide gap; raise this to let taste win more often.
   tasteWeight: int(process.env.ART_DIGEST_TASTE_WEIGHT, 40),
@@ -1012,6 +1016,124 @@ export async function buildArchiveIndex(dir, { read = readFile, list = readdir }
   return { updatedAt: new Date().toISOString(), days };
 }
 
+/**
+ * ArtStation, asked for the subjects you actually want.
+ *
+ * Trending is whatever the whole site is looking at, which is mostly anime and
+ * game character art. The subjects wanted here — architecture, environments,
+ * 3D and semi-realistic characters — only reach the digest if they are asked
+ * for by name, and search is the one parameter ArtStation honours. Channel,
+ * medium and the latest feed's filters are all decoration: each returns the
+ * unfiltered feed verbatim (`tools/probe-artstation-search.mjs`).
+ *
+ * `sorting=likes` is used because it is the one ordering that is both
+ * demonstrably real and demonstrably what it says: it returns a different set
+ * from relevance (23 of 50 shared) and holds perfectly still across samples,
+ * which is how an all-time popularity ordering should behave. `sorting=date`
+ * also returns a distinct set, but whether it orders by upload is unproven —
+ * a narrow subject is too quiet to tell — so nothing here claims to be new.
+ *
+ * What makes it renewable instead is the archive: anything the digest has
+ * already shown is skipped, so each run walks one step further down the
+ * ranking for each subject. Not "new to the internet", which ArtStation will
+ * not tell us — "new to you", which the archive can prove.
+ */
+export const DEFAULT_SUBJECTS = [
+  'environment concept art',
+  'architecture',
+  'architectural visualization',
+  '3d character',
+  'stylized character',
+  'character design',
+  'sci-fi environment',
+  'fantasy landscape',
+];
+
+/** Every piece the digest has ever shown, so a subject search can skip them. */
+export async function collectSeenIds(dir, { read = readFile, list = readdir } = {}) {
+  const seen = new Set();
+  let names;
+  try {
+    names = await list(dir);
+  } catch {
+    return seen; // no archive yet is simply nothing seen
+  }
+  for (const name of names.filter((n) => /^\d{4}-\d{2}-\d{2}\.json$/.test(n))) {
+    try {
+      const day = JSON.parse(await read(join(dir, name), 'utf8'));
+      for (const item of day.items || []) if (item?.id) seen.add(item.id);
+    } catch {
+      // A half-written day costs its own ids, not the whole filter.
+    }
+  }
+  return seen;
+}
+
+export async function collectArtStationSubjects(cfg, { search = null, seen = new Set() } = {}) {
+  const subjects = cfg.artstationSubjects?.length ? cfg.artstationSubjects : DEFAULT_SUBJECTS;
+  const fetchSubject =
+    search ||
+    ((query) =>
+      get(
+        `https://www.artstation.com/api/v2/search/projects.json?query=${encodeURIComponent(query)}` +
+          `&page=1&per_page=50&sorting=likes`,
+        { headers: { 'User-Agent': BROWSER_UA, Accept: 'application/json', Referer: 'https://www.artstation.com/search' } }
+      ));
+
+  const items = [];
+  const failed = [];
+  let fetched = 0;
+  let skipped = 0;
+  let sample;
+
+  for (const query of subjects) {
+    try {
+      const payload = await fetchSubject(query);
+      const rows = payload?.data ?? payload?.results ?? [];
+      fetched += rows.length;
+      sample = sample ?? sampleShape(rows[0]);
+      for (const [index, item] of normalizeArtStation({ data: rows }).entries()) {
+        const id = item.id.replace('artstation:', 'artsubject:');
+        if (seen.has(id) || seen.has(item.id)) {
+          skipped++;
+          continue;
+        }
+        items.push({
+          ...item,
+          source: 'artsubjects',
+          id,
+          context: query,
+          // Position among the most-liked for this subject. Not a like count —
+          // ArtStation serves none — and deliberately not a claim of newness.
+          value: rows.length - index,
+          scoreLabel: `#${index + 1} most liked for "${query}"`,
+          postedAt: null,
+          // No freshBy: this is the best work on a subject, not today's work,
+          // so it earns popularity credit and nothing for recency.
+          freshBy: undefined,
+        });
+      }
+    } catch (err) {
+      failed.push(`${query} (${err.message})`);
+    }
+    if (!search) await sleep(900);
+  }
+
+  if (!items.length && failed.length) throw new Error(failed.join('; '));
+  return {
+    items,
+    fetched,
+    note: [
+      `${subjects.length} subject${subjects.length === 1 ? '' : 's'}`,
+      skipped ? `${skipped} already shown, skipped` : '',
+      failed.length ? `failed: ${failed.join(', ')}` : '',
+    ]
+      .filter(Boolean)
+      .join(' · '),
+    sample,
+  };
+}
+
 export const SOURCES = [
   { id: 'artstation', label: 'ArtStation', home: 'https://www.artstation.com', collect: collectArtStation },
   { id: 'reddit', label: 'Reddit', home: 'https://www.reddit.com', collect: collectReddit },
@@ -1019,6 +1141,7 @@ export const SOURCES = [
   { id: 'deviantart', label: 'DeviantArt', home: 'https://www.deviantart.com', collect: collectDeviantArt },
   { id: 'bluesky', label: 'Bluesky', home: 'https://bsky.app', collect: collectBluesky },
   { id: 'danbooru', label: 'Danbooru', home: 'https://danbooru.donmai.us', collect: collectDanbooru },
+  { id: 'artsubjects', label: 'ArtStation subjects', home: 'https://www.artstation.com', collect: collectArtStationSubjects },
 ];
 
 /* ---------------------------------------------------------------- ranking */
@@ -1472,7 +1595,10 @@ export async function buildDigest(cfg = CONFIG) {
     ? SOURCES.filter((s) => cfg.sources.includes(s.id))
     : SOURCES;
 
-  const results = await Promise.allSettled(sources.map((s) => s.collect(cfg)));
+  // Every piece already shown, so the subject search can walk past them rather
+  // than offering the same top-rated work every day.
+  const seen = await collectSeenIds(join(CONFIG.outDir, 'archive'));
+  const results = await Promise.allSettled(sources.map((s) => s.collect(cfg, { seen })));
 
   sources.forEach((source, i) => {
     const result = results[i];

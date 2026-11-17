@@ -50,6 +50,7 @@ it stays a plain static page with no server, no build and no API keys.
 | DeviantArt | Daily Deviations (API) or `boost:popular max_age:24h in:digitalart` RSS | favourites, or position in the feed |
 | Bluesky | `searchPosts` over the art hashtags, public AppView, no credentials | likes |
 | Danbooru | `order:score age:1d` | score and favourites |
+| Your subjects | ArtStation search, `sorting=likes`, one query per subject | position among the most-liked for that subject |
 
 ### Subreddits
 
@@ -206,6 +207,43 @@ Two things follow, and both are load-bearing:
 `tools/probe-artstation.mjs` and `tools/probe-artstation-churn.mjs` reproduce
 every measurement above. They exist because a parameter that is quietly ignored
 answers 200 with a full page of results and looks exactly like one that works.
+
+### Asking ArtStation for a subject
+
+ArtStation's trending feed is whatever the whole site is looking at, which is
+mostly anime and game character art. Architecture, environments, 3D and
+semi-realistic character work only reach the digest if they are asked for by
+name — and search is the one parameter ArtStation honours. `tools/probe-artstation-search.mjs`
+checks the rest against a `page=2` control:
+
+| asked for | result |
+| --- | --- |
+| `&query=` on search | **works** — eight subjects returned eight disjoint sets |
+| `&sorting=likes` | **works** — 23 of 50 shared with relevance, and holds still across samples |
+| `&sorting=date` | different set, but whether it orders by upload is **unproven** |
+| `&sort_by=date`, `&medium=3d` | 49/50 shared — effectively ignored |
+| `&order=date` | 50/50 — ignored |
+| `&query=`, `&channel=`, `&medium=` on the *latest* feed | 50/50 — all ignored |
+
+So the subject source uses `sorting=likes`, the one ordering that is both real
+and demonstrably what its name says. `sorting=date` looked promising — it
+returns a completely different fifty rows — but the churn test cannot confirm
+it: "environment concept art" holds ~41,000 pieces from about fifteen years,
+roughly one upload every few hours, so a date-ordered query would sit perfectly
+still across a 150-second sample exactly as a non-date-ordered one does. Until
+that is settled nothing from this source claims to be new, and it earns no
+freshness credit.
+
+What keeps it from repeating is the archive. Top-rated work does not change, so
+every piece the digest has already shown is skipped and each run walks one step
+further down each subject's ranking. Not "new to the internet", which ArtStation
+will not tell us — "new to you", which the archive can prove.
+
+Change the subjects with `ART_DIGEST_SUBJECTS`:
+
+```sh
+ART_DIGEST_SUBJECTS='brutalist architecture,3d character,mech design' node collect.mjs
+```
 
 ### Taste
 

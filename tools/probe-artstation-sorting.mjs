@@ -10,6 +10,12 @@
  * So check it the way the latest feed was checked: sample twice with a gap. A
  * query ordered newest-first turns its head over as people upload; one ordered
  * by relevance or by likes does not move in minutes. Relevance is the control.
+ *
+ * The catch, learned by running it: this only answers for a query busy enough
+ * to receive uploads inside the gap. The site-wide latest feed churns because
+ * every upload flows through it. A subject with 41,000 results from fifteen
+ * years gets one every few hours, so zero churn proves nothing about it. Read
+ * a still result as "unknown", never as "not by date".
  */
 
 const GAP_MS = Number(process.env.CHURN_GAP_MS || 150_000);
@@ -86,8 +92,11 @@ if (date && control) {
           `turned over ${control.fresh}, and ${date.headFresh} of its top ten did not exist ${Math.round(GAP_MS / 1000)}s ` +
           'earlier. ArtStation can finally be asked for new work on a subject.'
       : date.fresh === 0
-        ? '- **`sorting=date` did not move.** It returns a different set from relevance, but not one ordered by upload ' +
-          'on this timescale — so it still cannot be called new.'
+        ? '- **`sorting=date` did not move, and this test cannot say why.** A narrow subject accumulates slowly: ' +
+          '"environment concept art" holds ~41,000 pieces from about fifteen years, which is one upload every few ' +
+          'hours, so a date-ordered query would show zero churn in 150 seconds too. Not-date-ordered and ' +
+          'date-ordered-but-quiet look identical here. Settling it needs a query busy enough to move within the gap, ' +
+          'or a much longer gap — until then nothing from this ordering may be called new.'
         : `- **Inconclusive.** date turned over ${date.fresh} rows and relevance ${control.fresh}; not a clear enough ` +
           'difference. Widen CHURN_GAP_MS and ask again.'
   );
