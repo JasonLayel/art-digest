@@ -7,6 +7,7 @@
 import assert from 'node:assert/strict';
 import { collectInlineImages } from '../send-email.mjs';
 import { extractLikes, extractProfile, mergeLikes } from '../tools/merge-taste.mjs';
+import { extractArtStationLikes, mergeArtStationLikes } from '../tools/merge-artstation-likes.mjs';
 import { sampleItems } from '../tools/build-calibration.mjs';
 import {
   normalizeReddit,
@@ -1123,6 +1124,76 @@ test('email: renders every item, escapes markup, and links the widget', () => {
 });
 
 /* ----------------------------------------------------------- diagnostics */
+
+/* ------------------------------------------------- artstation likes import */
+
+const likeRow = (hash, artist, title, tags = []) => ({ hash, artist, username: artist, title, tags });
+
+test('artstation likes: reads the export, fenced or bare', () => {
+  const payload = { artstationLikes: [likeRow('a1', 'Eddie Mendoza', 'Garden', ['environment'])] };
+  assert.equal(extractArtStationLikes(JSON.stringify(payload)).length, 1, 'bare JSON');
+  assert.equal(extractArtStationLikes('text\n```json\n' + JSON.stringify(payload) + '\n```').length, 1, 'pasted in a fence');
+  assert.deepEqual(extractArtStationLikes('not json at all'), []);
+  assert.deepEqual(extractArtStationLikes('{"nope": 1}'), []);
+});
+
+test('artstation likes: an artist liked repeatedly outweighs one liked once', () => {
+  const { profile } = mergeArtStationLikes({}, [
+    likeRow('a1', 'Eddie Mendoza', 'One'),
+    likeRow('a2', 'Eddie Mendoza', 'Two'),
+    likeRow('a3', 'Eddie Mendoza', 'Three'),
+    likeRow('b1', 'Someone Else', 'Once'),
+  ]);
+  assert.equal(profile.artists['Eddie Mendoza'], 3);
+  assert.equal(profile.artists['Someone Else'], 1);
+});
+
+test('artstation likes: tags are vocabulary, titles are a last resort', () => {
+  // An ArtStation tag is something the artist chose. A word off a title is a
+  // guess, and two months of digests showed how weak a guess it is.
+  const { profile } = mergeArtStationLikes({}, [
+    likeRow('a1', 'A', 'Brutalist tower block', ['architecture']),
+    likeRow('a2', 'B', 'Brutalist tower block', []),
+  ]);
+  assert.equal(profile.keywords.architecture, 1, 'a tag is worth a full point');
+  assert.equal(profile.keywords.brutalist, 0.25, 'a title word a quarter, and only where tags are absent');
+  assert.ok(!('tower' in profile.keywords) || profile.keywords.tower === 0.25);
+});
+
+test('artstation likes: recurring tags become the subjects to search for', () => {
+  // Better grounded than eight subjects guessed from a sentence.
+  const likes = [
+    ...Array.from({ length: 5 }, (_, i) => likeRow(`e${i}`, `A${i}`, 't', ['environment design'])),
+    ...Array.from({ length: 3 }, (_, i) => likeRow(`c${i}`, `B${i}`, 't', ['character design'])),
+    likeRow('x1', 'C', 't', ['one-off']),
+  ];
+  const { subjects } = mergeArtStationLikes({}, likes);
+  assert.deepEqual(subjects, ['environment design', 'character design'], 'three likes or more, commonest first');
+});
+
+test('artstation likes: merging keeps what a calibration learned', () => {
+  // Likes say what you want; only a rating session says what you turned down.
+  const existing = { contexts: { 'r/conceptart': 2 }, mute: ['blue archive'], sources: { pixiv: 0 }, artists: { Old: 2 } };
+  const { profile } = mergeArtStationLikes(existing, [likeRow('a1', 'New Artist', 'x', ['3d'])]);
+  assert.deepEqual(profile.contexts, { 'r/conceptart': 2 }, 'contexts survive');
+  assert.deepEqual(profile.mute, ['blue archive'], 'and so does the mute list');
+  assert.deepEqual(profile.sources, { pixiv: 0 }, 'and the source shares');
+  assert.equal(profile.artists.Old, 2, 'existing artists keep their weight');
+  assert.equal(profile.artists['New Artist'], 1);
+});
+
+test('artstation likes: weights stay bounded however much you liked something', () => {
+  const many = Array.from({ length: 50 }, (_, i) => likeRow(`h${i}`, 'Prolific', 't', ['environment']));
+  const { profile } = mergeArtStationLikes({}, many);
+  assert.equal(profile.artists.Prolific, 10, 'capped');
+  assert.equal(profile.keywords.environment, 10);
+});
+
+test('artstation likes: a placeholder is not an artist', () => {
+  const { profile } = mergeArtStationLikes({}, [likeRow('a1', 'Anonymous', 'x', []), likeRow('a2', 'Real Name', 'x', [])]);
+  assert.ok(!('Anonymous' in profile.artists));
+  assert.equal(profile.artists['Real Name'], 1);
+});
 
 /* ---------------------------------------------------- artstation subjects */
 

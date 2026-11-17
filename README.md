@@ -245,6 +245,42 @@ Change the subjects with `ART_DIGEST_SUBJECTS`:
 ART_DIGEST_SUBJECTS='brutalist architecture,3d character,mech design' node collect.mjs
 ```
 
+### Importing your ArtStation likes
+
+ArtStation refuses every `/users/` path to this project — anonymous or signed
+in, from CI or from a sandbox — so the likes cannot be fetched here at any
+price. A browser that is already signed in can simply ask, which makes the
+whole credential question moot.
+
+```sh
+# 1. open https://www.artstation.com/<you>/likes, signed in
+# 2. paste tools/grab-artstation-likes.js into the browser console
+# 3. it copies a JSON block to your clipboard
+node tools/merge-artstation-likes.mjs likes.json taste.json
+```
+
+Nothing is sent anywhere by that snippet: the only `fetch` in it is to
+artstation.com, which you can check before running it.
+
+Likes are the strongest signal this profile can take. They are deliberate,
+they accumulated over years, and an ArtStation **tag** is vocabulary the artist
+chose rather than a word scraped off a title — which matters, because titles
+matched 53 picks in sixty-one days. So a tag is worth a full point, an artist
+a point per piece you liked of theirs, and a title word a quarter and only
+where there are no tags at all.
+
+It merges rather than replaces, unlike a calibration. Likes say what you want;
+only a rating session says what you turned **down**, so the contexts, mutes and
+source shares a calibration produced all survive.
+
+It also prints the tags that recur across your likes, which are far better
+grounded as ArtStation search subjects than any list guessed from a
+description:
+
+```
+ART_DIGEST_SUBJECTS='environment design,character design,...'
+```
+
 ### Taste
 
 `taste.json` tilts the digest toward what you like. It holds weighted
