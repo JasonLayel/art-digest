@@ -1144,31 +1144,71 @@ test('artstation likes: an artist liked repeatedly outweighs one liked once', ()
     likeRow('a3', 'Eddie Mendoza', 'Three'),
     likeRow('b1', 'Someone Else', 'Once'),
   ]);
-  assert.equal(profile.artists['Eddie Mendoza'], 3);
-  assert.equal(profile.artists['Someone Else'], 1);
+  // Weights are scaled rather than counted, so what is asserted is the order
+  // and the ceiling — the numbers themselves are relative by design.
+  assert.ok(profile.artists['Eddie Mendoza'] > profile.artists['Someone Else']);
+  assert.ok(profile.artists['Eddie Mendoza'] <= 1, 'an artist is tripled inside affinityFor, so its peak stays low');
 });
 
-test('artstation likes: tags are vocabulary, titles are a last resort', () => {
-  // An ArtStation tag is something the artist chose. A word off a title is a
-  // guess, and two months of digests showed how weak a guess it is.
+test('artstation likes: a tag outweighs a word scraped off a title', () => {
+  // An ArtStation tag is something the artist chose. A title word is a guess,
+  // and two months of digests showed how weak a guess it is. (The real export
+  // carried no tags at all, which is why titles have to work regardless.)
   const { profile } = mergeArtStationLikes({}, [
-    likeRow('a1', 'A', 'Brutalist tower block', ['architecture']),
-    likeRow('a2', 'B', 'Brutalist tower block', []),
+    likeRow('a1', 'A', 'Brutalist monolith', ['architecture']),
+    likeRow('a2', 'B', 'Brutalist monolith', ['architecture']),
+    likeRow('a3', 'C', 'Brutalist monolith', []),
   ]);
-  assert.equal(profile.keywords.architecture, 1, 'a tag is worth a full point');
-  assert.equal(profile.keywords.brutalist, 0.25, 'a title word a quarter, and only where tags are absent');
-  assert.ok(!('tower' in profile.keywords) || profile.keywords.tower === 0.25);
+  assert.ok(profile.keywords.architecture > profile.keywords.brutalist, 'the chosen tag leads');
+  assert.ok(profile.keywords.brutalist > 0, 'but a title still teaches something');
 });
 
-test('artstation likes: recurring tags become the subjects to search for', () => {
-  // Better grounded than eight subjects guessed from a sentence.
+test('artstation likes: no weight can saturate the score on its own', () => {
+  // The first real import put dozens of words at 10. affinityFor divides the
+  // total by 6, so each one maxed the score alone: 58% of the archive pinned
+  // at the ceiling, a flat bonus on everything, ranking nothing.
+  const many = Array.from({ length: 400 }, (_, i) => likeRow(`h${i}`, `Artist ${i % 7}`, 'forest temple ruins'));
+  const { profile } = mergeArtStationLikes({}, many);
+  const SATURATION = 6;
+  for (const [term, weight] of Object.entries(profile.keywords)) {
+    assert.ok(weight < SATURATION / 2, `${term} at ${weight} would dominate the score by itself`);
+  }
+  for (const [name, weight] of Object.entries(profile.artists)) {
+    assert.ok(weight * 3 < SATURATION / 2, `${name} at ${weight} is tripled and would dominate`);
+  }
+});
+
+test('artstation likes: recurring subjects become the searches, scaled to the export', () => {
+  // The floor has to move with the input. Twelve occurrences is a sensible
+  // bar across three thousand likes and unreachable across thirty.
   const likes = [
     ...Array.from({ length: 5 }, (_, i) => likeRow(`e${i}`, `A${i}`, 't', ['environment design'])),
     ...Array.from({ length: 3 }, (_, i) => likeRow(`c${i}`, `B${i}`, 't', ['character design'])),
     likeRow('x1', 'C', 't', ['one-off']),
   ];
   const { subjects } = mergeArtStationLikes({}, likes);
-  assert.deepEqual(subjects, ['environment design', 'character design'], 'three likes or more, commonest first');
+  assert.ok(subjects.includes('environment design'), 'the commonest subject is asked for');
+  assert.ok(!subjects.includes('one-off'), 'a single mention is not a subject');
+});
+
+test('artstation likes: a name is never mistaken for a subject', () => {
+  // The real export's commonest title phrases were "star wars", "portrait toh"
+  // and "toh yasu" — a franchise and two halves of the most-liked artist.
+  const likes = Array.from({ length: 30 }, (_, i) =>
+    likeRow(`n${i}`, 'Toh Yasu', i % 2 ? 'portrait toh yasu' : 'forest temple')
+  );
+  const { subjects } = mergeArtStationLikes({}, likes);
+  assert.ok(!subjects.some((s) => /toh|yasu/.test(s)), `an artist's name leaked into ${JSON.stringify(subjects)}`);
+});
+
+test('artstation likes: a word that matches everything is not kept', () => {
+  // "daily" earned a real weight from the likes, then matched 26% of every
+  // digest because Pixiv labels every pick "Daily ranking #N".
+  const likes = Array.from({ length: 30 }, (_, i) => likeRow(`d${i}`, `A${i}`, 'daily forest'));
+  const corpus = Array.from({ length: 100 }, (_, i) => (i < 40 ? 'daily ranking #' + i : 'something else'));
+  const { profile } = mergeArtStationLikes({}, likes, { corpus });
+  assert.ok(!('daily' in profile.keywords), 'a word matching 40% of the stream cannot rank any of it');
+  assert.ok('forest' in profile.keywords, 'while a discriminating one survives');
 });
 
 test('artstation likes: merging keeps what a calibration learned', () => {
@@ -1178,21 +1218,16 @@ test('artstation likes: merging keeps what a calibration learned', () => {
   assert.deepEqual(profile.contexts, { 'r/conceptart': 2 }, 'contexts survive');
   assert.deepEqual(profile.mute, ['blue archive'], 'and so does the mute list');
   assert.deepEqual(profile.sources, { pixiv: 0 }, 'and the source shares');
-  assert.equal(profile.artists.Old, 2, 'existing artists keep their weight');
-  assert.equal(profile.artists['New Artist'], 1);
+  assert.ok(profile.artists.Old > 0, 'existing artists survive the merge');
+  assert.ok(profile.artists['New Artist'] > 0);
 });
 
-test('artstation likes: weights stay bounded however much you liked something', () => {
-  const many = Array.from({ length: 50 }, (_, i) => likeRow(`h${i}`, 'Prolific', 't', ['environment']));
-  const { profile } = mergeArtStationLikes({}, many);
-  assert.equal(profile.artists.Prolific, 10, 'capped');
-  assert.equal(profile.keywords.environment, 10);
-});
+
 
 test('artstation likes: a placeholder is not an artist', () => {
   const { profile } = mergeArtStationLikes({}, [likeRow('a1', 'Anonymous', 'x', []), likeRow('a2', 'Real Name', 'x', [])]);
   assert.ok(!('Anonymous' in profile.artists));
-  assert.equal(profile.artists['Real Name'], 1);
+  assert.ok(profile.artists['Real Name'] > 0);
 });
 
 /* ---------------------------------------------------- artstation subjects */

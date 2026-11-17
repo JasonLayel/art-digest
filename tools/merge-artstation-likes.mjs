@@ -227,12 +227,18 @@ export function mergeArtStationLikes(taste, likes, { subjectCount = 10, corpus =
   // engine" appeared in 53 of these titles, and real-time 3D environments are
   // exactly what that names.
   const subjectOk = (term) => !nameTokens.has(term) && (!STOPWORDS.has(term) || MEDIUM_TERMS.has(term));
+  // Thresholds have to scale with the export, or they only work for the size
+  // they were tuned on: twelve occurrences is a meaningful floor across three
+  // thousand likes and unreachable across thirty.
+  const wordFloor = Math.max(3, Math.round(likes.length * 0.004));
+  const phraseFloor = Math.max(2, Math.round(likes.length * 0.0013));
+
   const strongWords = new Map(
-    [...subjectCounts.entries()].filter(([term, n]) => n >= 12 && term.length >= 4 && subjectOk(term))
+    [...subjectCounts.entries()].filter(([term, n]) => n >= wordFloor && term.length >= 4 && subjectOk(term))
   );
 
   const topPhrases = [...phraseCounts.entries()]
-    .filter(([phrase, n]) => n >= 4 && phrase.split(' ').every((w) => strongWords.has(w)))
+    .filter(([phrase, n]) => n >= phraseFloor && phrase.split(' ').every((w) => strongWords.has(w)))
     .sort((a, b) => b[1] - a[1])
     .map(([term]) => term);
   const topWords = [...strongWords.entries()].sort((a, b) => b[1] - a[1]).map(([term]) => term);

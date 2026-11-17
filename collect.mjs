@@ -1038,15 +1038,26 @@ export async function buildArchiveIndex(dir, { read = readFile, list = readdir }
  * ranking for each subject. Not "new to the internet", which ArtStation will
  * not tell us — "new to you", which the archive can prove.
  */
+/**
+ * Derived from 3,000 ArtStation likes rather than guessed from a description
+ * — the counts in brackets are how often each turned up in those likes. Every
+ * one was then checked against ArtStation itself: all ten return results, and
+ * all ten are mutually disjoint, so each buys its own slot rather than
+ * reshuffling the same pool.
+ *
+ * Rebuild them from a fresh export with tools/merge-artstation-likes.mjs.
+ */
 export const DEFAULT_SUBJECTS = [
-  'environment concept art',
-  'architecture',
-  'architectural visualization',
-  '3d character',
-  'stylized character',
-  'character design',
-  'sci-fi environment',
-  'fantasy landscape',
+  'unreal engine environment', // ue4 89, unreal 67, engine 54, ue5 44 — real-time 3D
+  'environment concept art', //  environment 61
+  'abandoned interior', //       interior 20, abandoned 17
+  'ancient temple', //           temple 32
+  'space station', //            space 32, station 22
+  'forest environment', //       forest 51
+  'city concept art', //         city 50
+  'realistic portrait', //       portrait 30, and the likenesses among the likes
+  '3d character', //             asked for directly
+  'castle ruins', //             castle 23, ruins 19
 ];
 
 /** Every piece the digest has ever shown, so a subject search can skip them. */
