@@ -1,42 +1,44 @@
 # 🎨 Daily Digital Art Digest
 
 A small widget that collects the most popular **new** digital art from
-**ArtStation**, **Reddit** (two dozen art subreddits), **Pixiv**,
-**DeviantArt**, **Bluesky** and **Danbooru**, ranks it into one list, and sends
-it to you.
+**ArtStation**, **Reddit** (two dozen art subreddits), **Pixiv** and
+**Danbooru** — plus ArtStation searched for the subjects you actually like —
+ranks it into one list, and tells your phone when it's ready.
 
 Live page: <https://JasonLayel.github.io/art-digest/>
 
 ## How it works
 
 ```
-GitHub Actions (daily)          this repo                      you
-┌──────────────────┐   commit   ┌─────────────────┐   read    ┌──────────────────┐
-│ collect.mjs      │ ─────────► │ data/latest.json│ ────────► │ /art-digest/ page│
-│ 4 sources → rank │            │ data/email.html │           └──────────────────┘
-└────────┬─────────┘            └─────────────────┘
-         │  send-email.mjs (SMTP)                              ┌──────────────────┐
-         └───────────────────────────────────────────────────► │ your inbox       │
-                                                               └──────────────────┘
+GitHub Actions (daily)         this repo                     you
+┌──────────────────┐  commit   ┌──────────────────┐  read   ┌──────────────────┐
+│ collect.mjs      │ ────────► │ data/latest.json │ ──────► │ /art-digest/ page│
+│ 5 sources → rank │           │ data/archive/…   │         │  + 60 days back  │
+└────────┬─────────┘           └──────────────────┘         └──────────────────┘
+         │  tools/notify.mjs (ntfy)                          ┌──────────────────┐
+         └─────────────────────────────────────────────────► │ your phone       │
+                                                             └──────────────────┘
 ```
 
-The collection runs in CI rather than in your browser because ArtStation,
-Pixiv and DeviantArt don't allow cross-origin reads, and because a static page
-can't wake itself up once a day. The widget only reads the committed JSON, so
-it stays a plain static page with no server, no build and no API keys.
+Collection runs in CI rather than in your browser because ArtStation and Pixiv
+don't allow cross-origin reads, and because a static page can't wake itself up
+once a day. The widget only reads the committed JSON, so it stays a plain
+static page with no server, no build and no API keys.
 
 | File | Purpose |
 | --- | --- |
-| `collect.mjs` | Fetches all four sources, normalizes, ranks, writes `data/` |
-| `send-email.mjs` | Sends the digest over SMTP (no dependencies) |
-| `taste.json` | What the digest leans toward: weighted keywords, artists, contexts, and mutes |
-| `tools/merge-taste.mjs` | Folds gallery likes into `taste.json` |
-| `tools/probe-artstation.mjs`, `tools/probe-pinterest.mjs` | Ask a source what it will answer without credentials |
-| `index.html`, `digest.css`, `digest.js` | The widget: filterable gallery of the current digest |
-| `test/run.mjs` | Fixture tests for the parsers, ranking and email template |
-| `test/smtp.mjs` | Mail round-trip against a throwaway local SMTP server |
+| `collect.mjs` | Fetches every source, normalizes, ranks, writes `data/` |
+| `tools/notify.mjs` | Pushes a line about the digest to your phone via ntfy |
+| `taste.json` | What the digest leans toward: weighted keywords, artists, contexts, source shares and mutes |
+| `tools/merge-taste.mjs` | Folds gallery likes, or a calibration, into `taste.json` |
+| `tools/grab-artstation-likes.js` | Run in your browser; exports your ArtStation likes |
+| `tools/merge-artstation-likes.mjs` | Folds that export into `taste.json` |
+| `tools/build-calibration.mjs` | Draws a rating sample out of the archive |
+| `tools/probe-*.mjs` | Ask a source what it will actually answer, before anything is built on a guess |
+| `index.html`, `digest.css`, `digest.js` | The widget: filterable gallery, with the archive browsable by day |
+| `calibrate.html`, `calibrate.js` | Keep-or-skip page that rewrites the taste profile |
+| `test/run.mjs` | Fixture tests for the parsers, ranking, taste and tools |
 | `data/latest.json` | The current digest (written by CI) |
-| `data/email.html` | The same digest as a ready-to-send HTML email |
 | `data/feed.xml` | The same digest as an RSS feed, one entry per artwork |
 | `data/archive/*.json` | One snapshot per day |
 
