@@ -74,6 +74,15 @@ jobs:
             require("fs").appendFileSync(process.env.GITHUB_STEP_SUMMARY, out.join("\n") + "\n");
           '
 
+      - name: Tell the phone
+        # Only on the daily run and on manual runs, so a push that touches the
+        # collector does not buzz a phone. Without the topic this prints what
+        # it would have sent and succeeds.
+        if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+        env:
+          ART_DIGEST_NTFY_TOPIC: ${{ secrets.ART_DIGEST_NTFY_TOPIC }}
+        run: node tools/notify.mjs
+
       - name: Upload the digest
         uses: actions/upload-artifact@v4
         with:

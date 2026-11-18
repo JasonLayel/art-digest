@@ -8,6 +8,7 @@ import assert from 'node:assert/strict';
 import { extractLikes, extractProfile, mergeLikes } from '../tools/merge-taste.mjs';
 import { extractArtStationLikes, mergeArtStationLikes } from '../tools/merge-artstation-likes.mjs';
 import { sampleItems } from '../tools/build-calibration.mjs';
+import { summarize } from '../tools/notify.mjs';
 import {
   normalizeReddit,
   normalizeRedditRss,
@@ -996,6 +997,38 @@ const imageResponse = (bytes, type = 'image/jpeg') => ({
   arrayBuffer: async () => new Uint8Array(bytes).buffer,
 });
 // The real fetch returns Headers; a Map answers .get the same way.
+
+/* ------------------------------------------------------------ notification */
+
+test('notify: the line says what is worth knowing from a lock screen', () => {
+  const { title, body, thumb } = summarize({
+    items: [
+      { title: 'Ice Wolf', artist: 'Tyler Smith', thumb: 'https://cdn/x.jpg', matched: ['forest'] },
+      { title: 'Second', matched: [] },
+      { title: 'Third', matched: ['city'] },
+    ],
+    sources: [{ id: 'reddit', label: 'Reddit', status: 'failed' }, { id: 'pixiv', label: 'Pixiv', status: 'ok' }],
+  });
+  assert.equal(title, 'Ice Wolf — Tyler Smith');
+  assert.match(body, /3 picks · 2 on your subjects/);
+  assert.match(body, /not answering: Reddit/, 'a source that quietly stopped is the thing worth being told');
+  assert.equal(thumb, 'https://cdn/x.jpg');
+});
+
+test('notify: everything working means no alarm in the message', () => {
+  const { body } = summarize({
+    items: [{ title: 'One', matched: [] }],
+    sources: [{ id: 'pixiv', label: 'Pixiv', status: 'ok' }],
+  });
+  assert.ok(!/not answering/.test(body));
+});
+
+test('notify: an empty digest still produces a sendable line', () => {
+  const { title, body, thumb } = summarize({ items: [], sources: [] });
+  assert.ok(title.length > 0);
+  assert.match(body, /0 picks/);
+  assert.equal(thumb, '');
+});
 
 /* -------------------------------------------------------------- calibration */
 
