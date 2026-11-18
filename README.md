@@ -47,10 +47,25 @@ it stays a plain static page with no server, no build and no API keys.
 | ArtStation | community trending explore feed | position in the trending feed (the feed carries no like counts, and no dates either — see below) |
 | Reddit | `top?t=day` across the subreddits below | upvotes, or feed position on the Atom fallback |
 | Pixiv | daily illustration ranking (plus the R-18 ranking with a session cookie) | bookmarks |
-| DeviantArt | Daily Deviations (API) or `boost:popular max_age:24h in:digitalart` RSS | favourites, or position in the feed |
-| Bluesky | `searchPosts` over the art hashtags, public AppView, no credentials | likes |
 | Danbooru | `order:score age:1d` | score and favourites |
 | Your subjects | ArtStation search, `sorting=likes`, one query per subject | position among the most-liked for that subject |
+
+### Why Reddit keeps losing subreddits
+
+Reddit throttles anonymous datacenter traffic, and it shows: across the last
+thirty days **6.7 subreddits a day** were dropped to HTTP 429, on 29 of those
+30 days. The ones in the taste profile suffer most — r/ImaginaryCityscapes was
+dropped on 36 of 61 days.
+
+The collector already prefers an authenticated route and falls back to the
+public JSON and then the Atom feed. It just has no credentials. Giving it some
+is the single biggest quality win available:
+
+1. Create a **script** app at <https://www.reddit.com/prefs/apps> (free).
+2. Add the repository secrets `REDDIT_CLIENT_ID` and `REDDIT_CLIENT_SECRET`.
+
+That lifts the ceiling from "whatever Reddit feels like serving an anonymous
+runner" to roughly 100 requests a minute, and the drops largely stop.
 
 ### Subreddits
 
@@ -435,68 +450,29 @@ only runs `schedule:` triggers from the **default branch**, so the daily run
 starts once this workflow is merged to `master`; until then use *Actions → Art
 digest → Run workflow*, or push a change to `collect.mjs`.
 
-## Getting it emailed
+## Getting told on your phone
 
-`send-email.mjs` sends the digest over SMTP with no dependencies and no
-third-party action holding your credentials. The workflow runs it after each
-scheduled or manual collection; without credentials it prints a preview and
-succeeds, so nothing breaks until you turn it on.
+There is no email. It was never read and is gone, along with the SMTP client
+and the inline-image machinery.
 
-To turn it on, add these repository secrets
-(*Settings → Secrets and variables → Actions*):
+Instead the daily run pushes a notification through [ntfy](https://ntfy.sh),
+which needs no account at either end:
 
-| Secret | Value |
-| --- | --- |
-| `DIGEST_SMTP_USER` | the sending address, e.g. `you@gmail.com` |
-| `DIGEST_SMTP_PASS` | an [app password](https://myaccount.google.com/apppasswords) — never your account password |
-| `DIGEST_TO` | optional; defaults to `DIGEST_SMTP_USER` |
+1. Install the ntfy app and subscribe to a topic only you know — treat the name
+   like a password, because anyone holding it can push to your phone.
+2. Add it as the repository secret `ART_DIGEST_NTFY_TOPIC`.
 
-Any SMTP host works: set `DIGEST_SMTP_HOST` / `DIGEST_SMTP_PORT` (defaults
-`smtp.gmail.com` and `465`, implicit TLS).
+The message carries the top pick's title and artist, how many of today's picks
+landed on your subjects, the first thumbnail, and a tap that opens the gallery.
+It also names any source that has stopped answering — the failure that
+otherwise goes unnoticed for a month, as Bluesky's did.
 
-```sh
-node send-email.mjs --dry-run   # print the message instead of sending
-node send-email.mjs             # send, if the credentials are set
-```
-
-`data/email.html` is also written on every run, so any other mailer can pick it
-up as a message body:
+With no topic set it prints what it would have sent and the run carries on, so
+a notification can never break a digest.
 
 ```sh
-curl -s https://raw.githubusercontent.com/JasonLayel/art-digest/main/data/email.html
+node tools/notify.mjs            # dry run against the last digest
 ```
-
-## History
-
-Every run has always written `data/archive/<date>.json`, a complete snapshot of
-that day in the same shape as `latest.json`. The gallery can now read them.
-
-A day picker sits in the masthead whenever the archive holds more than one day:
-`‹` and `›` step a day at a time, and the dropdown jumps anywhere. The day being
-shown is in the URL, so a day can be bookmarked or sent to someone —
-`…/#2026-09-22` opens straight to it — and the browser's back button walks back
-through the days you looked at.
-
-Two things deliberately do *not* happen on a past day:
-
-- **No live top-up.** When the collected feed is more than 36 hours old the page
-  pulls fresh Reddit picks to fill the gap. Doing that to a past day would merge
-  today's work into a record of a different day, so it only ever runs on the
-  live feed.
-- **No "Today".** Days are labelled against the actual calendar, not against the
-  newest file in the archive. Those agree only while the schedule is keeping up:
-  before the day's run lands, the newest file is yesterday's, and the picker says
-  so rather than hiding it.
-
-A static page cannot list a directory, so each run also writes
-`data/archive/index.json` — one summary line per day, rebuilt from the files
-actually on disk rather than appended to, so a day deleted by hand leaves the
-index and a day restored by hand rejoins it. A day that will not parse is
-skipped; it does not take the rest of the history with it.
-
-At roughly 32 KB a day, a year of history is about 12 MB. Nothing prunes it;
-delete files from `data/archive/` if you ever want to, and the index will agree
-on the next run.
 
 ## Subscribing in a reader
 
