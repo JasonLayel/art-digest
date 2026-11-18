@@ -341,7 +341,7 @@ export const REDDIT_DEFAULTS = {
 };
 
 export async function harvestSubreddits(subs, run, options = {}) {
-  const { groupSize, budget, pause, backoff, retries, deadlineMs, now = () => Date.now() } = {
+  const { groupSize, budget, pause, backoff, retries, deadlineMs, rotateBy = 0, now = () => Date.now() } = {
     ...REDDIT_DEFAULTS,
     ...options,
   };
@@ -395,9 +395,20 @@ export async function harvestSubreddits(subs, run, options = {}) {
    * group is asked again next pass. When the retries run out it is one
    * subreddit refusing rather than all of Reddit, and halving finds that too.
    */
+  // Rotate the order before grouping, so the same names are not always last.
+  //
+  // Reddit throttles harder the further into a burst a request arrives, and
+  // chunking a fixed list meant the tail met a Reddit that had already seen
+  // twenty. Over 64 days that was not bad luck, it was a policy:
+  // r/ImaginaryWildlands was dropped on 37 days, r/ImaginaryCityscapes on 36,
+  // and neither ever produced a single pick — while both sit in the taste
+  // profile. Rotating by the day turns "these names never appear" into
+  // "every name gets an early slot about as often as any other".
+  const ordered = subs.length ? [...subs.slice(rotateBy % subs.length), ...subs.slice(0, rotateBy % subs.length)] : [];
+
   let pending = [];
-  for (let i = 0; i < subs.length; i += groupSize) {
-    pending.push({ subs: subs.slice(i, i + groupSize), tries: 0 });
+  for (let i = 0; i < ordered.length; i += groupSize) {
+    pending.push({ subs: ordered.slice(i, i + groupSize), tries: 0 });
   }
 
   while (pending.length) {
@@ -493,7 +504,9 @@ async function collectReddit(cfg) {
     throw lastError;
   };
 
-  const harvest = await harvestSubreddits(cfg.subs, run);
+  // A different starting point each day, so no name is permanently last.
+  const dayNumber = Math.floor(Date.now() / 86_400_000);
+  const harvest = await harvestSubreddits(cfg.subs, run, { rotateBy: dayNumber });
   if (!harvest.items.length) throw new Error(harvest.errors.slice(0, 3).join(' | ') || 'no posts returned');
 
   return {

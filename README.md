@@ -59,9 +59,17 @@ thirty days **6.7 subreddits a day** were dropped to HTTP 429, on 29 of those
 30 days. The ones in the taste profile suffer most — r/ImaginaryCityscapes was
 dropped on 36 of 61 days.
 
-The collector already prefers an authenticated route and falls back to the
-public JSON and then the Atom feed. It just has no credentials. Giving it some
-is the single biggest quality win available:
+Worse, the loss was not spread evenly. Subreddits were grouped in a fixed
+order, Reddit throttles harder the deeper into a burst a request arrives, and
+so the tail of the list always met the angriest Reddit. Across 64 days
+r/ImaginaryWildlands was dropped on 37 of them and r/ImaginaryCityscapes on
+36 — **neither ever produced a single pick**, while both sit in the taste
+profile. That was the schedule, not the subreddits. The order now rotates by
+the day, so every name gets an early slot about as often as any other.
+
+The collector also prefers an authenticated route, falling back to the public
+JSON and then the Atom feed. It just has no credentials. Giving it some lifts
+the ceiling the rotation can only share out more fairly:
 
 1. Create a **script** app at <https://www.reddit.com/prefs/apps> (free).
 2. Add the repository secrets `REDDIT_CLIENT_ID` and `REDDIT_CLIENT_SECRET`.

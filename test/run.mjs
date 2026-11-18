@@ -532,6 +532,43 @@ test('subreddits: every group is asked once before any group is asked twice', as
   );
 });
 
+test('subreddits: the order rotates, so no name is permanently last', async () => {
+  // Reddit throttles harder deeper into a burst, and a fixed order meant the
+  // tail always met the worst of it. Over 64 days r/ImaginaryWildlands was
+  // dropped on 37 and never produced one pick — while sitting in the taste
+  // profile. That was not bad luck, it was the schedule.
+  const names = Array.from({ length: 12 }, (_, i) => `sub${i}`);
+  const firstAsked = [];
+  for (let day = 0; day < 6; day++) {
+    await harvestSubreddits(names, async (group) => {
+      firstAsked.push(group[0]);
+      return { items: [], fetched: 0 };
+    }, { groupSize: 4, pause: 0, backoff: 0, rotateBy: day });
+  }
+  // Each day asks three groups; the first of each day's first group is what
+  // matters, and it has to move.
+  const leaders = firstAsked.filter((_, i) => i % 3 === 0);
+  assert.equal(new Set(leaders).size, leaders.length, `the same name led every day: ${leaders}`);
+});
+
+test('subreddits: rotating never loses or duplicates a name', async () => {
+  const names = Array.from({ length: 10 }, (_, i) => `sub${i}`);
+  for (const rotateBy of [0, 1, 7, 10, 37, 1000]) {
+    const asked = [];
+    await harvestSubreddits(names, async (group) => {
+      asked.push(...group);
+      return { items: [], fetched: 0 };
+    }, { groupSize: 3, pause: 0, backoff: 0, rotateBy });
+    assert.deepEqual([...asked].sort(), [...names].sort(), `rotateBy ${rotateBy} changed the set`);
+  }
+});
+
+test('subreddits: an empty list rotates to nothing rather than dividing by zero', async () => {
+  const { items, dropped } = await harvestSubreddits([], async () => ({ items: [], fetched: 0 }), { rotateBy: 5 });
+  assert.deepEqual(items, []);
+  assert.deepEqual(dropped, []);
+});
+
 test('subreddits: a clean list costs one request per group', async () => {
   const log = [];
   const result = await harvestSubreddits(SUBS, fakeRun([], log), { pause: 0, backoff: 0 });
