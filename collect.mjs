@@ -1288,6 +1288,12 @@ const SOURCE_COLORS = {
   danbooru: '#c8860a',
 };
 
+/** RSS wants RFC-822 dates, and refuses to parse an invalid one. */
+const rfc822 = (iso) => {
+  const d = new Date(iso);
+  return Number.isNaN(d.valueOf()) ? new Date().toUTCString() : d.toUTCString();
+};
+
 /** Table-based HTML so it survives email clients. */
 export function renderFeed(digest, { siteUrl = CONFIG.siteUrl, feedUrl = `${CONFIG.siteUrl}data/feed.xml` } = {}) {
   const items = digest.items

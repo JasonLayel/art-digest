@@ -1,6 +1,6 @@
 /**
  * Fixture tests for the collector's pure parts: source normalizers, the
- * cross-source ranking, and the email renderer. No network — run with:
+ * cross-source ranking, the taste tools and the feed. No network — run with:
  *   node art-digest/test/run.mjs
  */
 
@@ -35,7 +35,13 @@ import {
 let passed = 0;
 const failures = [];
 const pending = [];
+let drained = false;
 const test = (name, fn) => {
+  // Registering after the queue has been drained means the test never runs,
+  // and says nothing about it. That is how the feed's tests sat dead at the
+  // bottom of this file while a helper they covered was deleted and shipped
+  // twice. Refuse rather than accept a test that will be silently skipped.
+  if (drained) throw new Error(`test registered after the run: "${name}" would never have executed`);
   const run = async () => {
     try {
       await fn();
@@ -1267,7 +1273,6 @@ test('sampleShape: trims a raw row to something loggable', () => {
 });
 
 // Run in declaration order so the output reads top to bottom.
-for (const run of pending) await run();
 
 /* -------------------------------------------------------------------- feed */
 
@@ -1291,6 +1296,9 @@ test('feed: one item per artwork, with the image and the 18+ marker', () => {
   assert.ok(xml.includes('<atom:link href="https://example.com/data/feed.xml"'), 'the feed points at itself');
   assert.match(xml, /^<\?xml version="1\.0" encoding="UTF-8"\?>/);
 });
+
+for (const run of pending) await run();
+drained = true;
 
 console.log(`\n${passed} passed, ${failures.length} failed`);
 if (failures.length) process.exit(1);
