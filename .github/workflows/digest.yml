@@ -1,6 +1,6 @@
 # Collects the most popular new digital art (ArtStation, Reddit, Pixiv,
 # DeviantArt) and commits the result to data/, which the widget at
-# /art-digest/ reads and the daily email digest is built from.
+# /art-digest/ reads.
 #
 # The scheduled run only fires from the default branch (GitHub's rule), so the
 # daily digest starts once this workflow is on master. Pushes that touch the
@@ -50,14 +50,10 @@ jobs:
           # public endpoints. See art-digest/README.md.
           REDDIT_CLIENT_ID: ${{ secrets.REDDIT_CLIENT_ID }}
           REDDIT_CLIENT_SECRET: ${{ secrets.REDDIT_CLIENT_SECRET }}
-          DEVIANTART_CLIENT_ID: ${{ secrets.DEVIANTART_CLIENT_ID }}
-          DEVIANTART_CLIENT_SECRET: ${{ secrets.DEVIANTART_CLIENT_SECRET }}
           # Pixiv only serves its R-18 ranking to a logged-in session.
           PIXIV_SESSION: ${{ secrets.PIXIV_SESSION }}
           # Bluesky's public AppView refuses some datacenter traffic; an app
           # password (not the account password) gets a signed-in route.
-          BLUESKY_IDENTIFIER: ${{ secrets.BLUESKY_IDENTIFIER }}
-          BLUESKY_APP_PASSWORD: ${{ secrets.BLUESKY_APP_PASSWORD }}
         run: node collect.mjs
 
       - name: Summarize the run
@@ -78,24 +74,12 @@ jobs:
             require("fs").appendFileSync(process.env.GITHUB_STEP_SUMMARY, out.join("\n") + "\n");
           '
 
-      - name: Email the digest
-        # Only on the daily run and on manual runs, so pushes that touch the
-        # collector don't send mail. Without the secrets this prints a preview
-        # and succeeds.
-        if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
-        env:
-          DIGEST_SMTP_USER: ${{ secrets.DIGEST_SMTP_USER }}
-          DIGEST_SMTP_PASS: ${{ secrets.DIGEST_SMTP_PASS }}
-          DIGEST_TO: ${{ secrets.DIGEST_TO }}
-        run: node send-email.mjs
-
       - name: Upload the digest
         uses: actions/upload-artifact@v4
         with:
           name: art-digest
           path: |
             data/latest.json
-            data/email.html
           retention-days: 14
 
       - name: Commit the digest

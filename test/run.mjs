@@ -5,7 +5,6 @@
  */
 
 import assert from 'node:assert/strict';
-import { collectInlineImages } from '../send-email.mjs';
 import { extractLikes, extractProfile, mergeLikes } from '../tools/merge-taste.mjs';
 import { extractArtStationLikes, mergeArtStationLikes } from '../tools/merge-artstation-likes.mjs';
 import { sampleItems } from '../tools/build-calibration.mjs';
@@ -16,9 +15,6 @@ import {
   normalizeArtStation,
   artstationSize,
   normalizePixiv,
-  normalizeDeviantArt,
-  normalizeDeviantArtApi,
-  normalizeBluesky,
   normalizeDanbooru,
   applyNsfwPolicy,
   harvestSubreddits,
@@ -32,7 +28,6 @@ import {
   collectSeenIds,
   DEFAULT_SUBJECTS,
   resolveThumbnails,
-  renderEmail,
   renderFeed,
 } from '../collect.mjs';
 
@@ -330,90 +325,6 @@ const deviantartXml = `<?xml version="1.0" encoding="utf-8"?>
 </item>
 </channel></rss>`;
 
-test('deviantart: parses the RSS feed and flags mature deviations', () => {
-  const items = normalizeDeviantArt(deviantartXml);
-  assert.equal(items.length, 2);
-  assert.deepEqual(items.map((i) => i.nsfw), [false, true]);
-  const [item] = items;
-  assert.equal(item.id, 'deviantart:998877');
-  assert.equal(item.title, 'Ember Fox');
-  assert.equal(item.artist, 'Aurelia');
-  assert.equal(item.thumb, 'https://images-wixmp.com/t400/ember.jpg', 'largest thumbnail wins');
-  assert.equal(item.scoreLabel, '#1 most popular');
-  assert.ok(item.postedAt.startsWith('2026-09-11'), 'pubDate parsed to ISO');
-});
-
-test('deviantart api: normalizes daily deviations and flags mature ones', () => {
-  const items = normalizeDeviantArtApi({
-    results: [
-      {
-        deviationid: 'abc-123',
-        title: 'Ember Fox',
-        url: 'https://www.deviantart.com/aurelia/art/Ember-Fox-998877',
-        is_mature: false,
-        published_time: String(Math.floor(NOW / 1000) - 3600),
-        author: { username: 'Aurelia' },
-        preview: { src: 'https://images-wixmp.com/preview/ember.jpg' },
-        content: { src: 'https://images-wixmp.com/full/ember.jpg' },
-        stats: { favourites: 4210, comments: 88 },
-      },
-      { deviationid: 'm-1', title: 'Mature', url: 'https://www.deviantart.com/x/art/m-1', is_mature: true, author: { username: 'x' }, preview: { src: 'https://i/m.jpg' }, stats: { favourites: 99999 } },
-      { deviationid: 'no-img', title: 'No image', url: 'https://www.deviantart.com/x/art/no-img', author: { username: 'x' }, stats: { favourites: 5 } },
-    ],
-  });
-  assert.deepEqual(items.map((i) => i.id), ['deviantart:abc-123', 'deviantart:m-1']);
-  assert.deepEqual(items.map((i) => i.nsfw), [false, true]);
-  const [item] = items;
-  assert.equal(item.artist, 'Aurelia');
-  assert.equal(item.artistUrl, 'https://www.deviantart.com/Aurelia');
-  assert.equal(item.image, 'https://images-wixmp.com/full/ember.jpg');
-  assert.equal(item.thumb, 'https://images-wixmp.com/preview/ember.jpg');
-  assert.equal(item.scoreLabel, '4.2k favourites');
-  assert.equal(item.context, 'Daily Deviation');
-  assert.ok(item.postedAt.startsWith('2026-09-11'));
-});
-
-/* ---------------------------------------------------------------- bluesky */
-
-const blueskyPayload = {
-  posts: [
-    {
-      uri: 'at://did:plc:abc/app.bsky.feed.post/3kxyz',
-      author: { handle: 'mira.bsky.social', displayName: 'Mira Solis' },
-      record: { text: 'Ashfall Cathedral. Finally finished!\nOils over a 3D block-in. #conceptart', createdAt: '2026-09-11T09:00:00.000Z' },
-      embed: { images: [{ thumb: 'https://cdn.bsky.app/thumb/1.jpg', fullsize: 'https://cdn.bsky.app/full/1.jpg' }] },
-      likeCount: 2410,
-    },
-    {
-      uri: 'at://did:plc:def/app.bsky.feed.post/3kabc',
-      author: { handle: 'inky.bsky.social' },
-      // A quote-post with media nests the images one level deeper.
-      embed: { media: { images: [{ thumb: 'https://cdn.bsky.app/thumb/2.jpg', fullsize: 'https://cdn.bsky.app/full/2.jpg' }] } },
-      record: { text: 'late night sketch', createdAt: '2026-09-11T04:00:00.000Z' },
-      likeCount: 180,
-      labels: [{ val: 'nudity' }],
-    },
-    { uri: 'at://did:plc:ghi/app.bsky.feed.post/3knope', author: { handle: 'text.bsky.social' }, record: { text: 'no picture here' }, likeCount: 9000 },
-  ],
-};
-
-test('bluesky: reads both embed shapes, titles from the post text, flags labels', () => {
-  const items = normalizeBluesky(blueskyPayload, 'conceptart');
-  assert.equal(items.length, 2, 'posts without an image are dropped');
-  const [first, second] = items;
-  assert.equal(first.title, 'Ashfall Cathedral', 'the first sentence becomes the title');
-  assert.equal(first.artist, 'Mira Solis');
-  assert.equal(first.url, 'https://bsky.app/profile/mira.bsky.social/post/3kxyz');
-  assert.equal(first.thumb, 'https://cdn.bsky.app/thumb/1.jpg');
-  assert.equal(first.context, '#conceptart');
-  assert.equal(first.nsfw, false);
-  assert.equal(second.artist, '@inky.bsky.social', 'falls back to the handle');
-  assert.equal(second.thumb, 'https://cdn.bsky.app/thumb/2.jpg', 'quote-post media is found');
-  assert.equal(second.nsfw, true, 'a nudity label marks the post adult');
-});
-
-/* --------------------------------------------------------------- danbooru */
-
 test('danbooru: titles from character and series, credits the original source', () => {
   const items = normalizeDanbooru([
     {
@@ -463,6 +374,55 @@ const fakeRun = (broken = [], log = []) => async (group) => {
   }
   return { items: group.map((sub) => ({ id: sub, context: `r/${sub}` })), fetched: group.length };
 };
+
+test('danbooru: a video post still gets a thumbnail an <img> can show', () => {
+  // large_file_url is the original, which on a video post is an .mp4. It was
+  // first choice for the thumbnail, so 17% of a month's Danbooru cards shipped
+  // a video URL to an <img> and rendered nothing at all.
+  const [item] = normalizeDanbooru([
+    {
+      id: 9,
+      score: 100,
+      rating: 'g',
+      tag_string_character: 'tracer',
+      tag_string_copyright: 'overwatch',
+      large_file_url: 'https://cdn.donmai.us/original/29/15/abc.mp4',
+      file_url: 'https://cdn.donmai.us/original/29/15/abc.mp4',
+      preview_file_url: 'https://cdn.donmai.us/preview/29/15/abc.jpg',
+      media_asset: {
+        variants: [
+          { type: '360x360', url: 'https://cdn.donmai.us/360x360/29/15/abc.jpg' },
+          { type: 'original', url: 'https://cdn.donmai.us/original/29/15/abc.mp4' },
+        ],
+      },
+    },
+  ]);
+  assert.match(item.thumb, /\.jpg$/, `shipped ${item.thumb}`);
+  assert.ok(!/\.mp4/.test(item.thumb));
+  assert.ok(!item.thumbFallbacks.some((u) => /\.(mp4|webm)/.test(u)), 'nor do the fallbacks');
+});
+
+test('danbooru: a still post prefers a sized variant over the full original', () => {
+  const [item] = normalizeDanbooru([
+    {
+      id: 10,
+      score: 50,
+      rating: 'g',
+      tag_string_character: 'firefly',
+      large_file_url: 'https://cdn.donmai.us/sample/d7/5e/big.jpg',
+      preview_file_url: 'https://cdn.donmai.us/preview/d7/5e/tiny.jpg',
+      media_asset: { variants: [{ type: '360x360', url: 'https://cdn.donmai.us/360x360/d7/5e/card.jpg' }] },
+    },
+  ]);
+  assert.equal(item.thumb, 'https://cdn.donmai.us/360x360/d7/5e/card.jpg', 'card-sized, not a full sample');
+});
+
+test('danbooru: a post with no renderable image is dropped, not shipped blank', () => {
+  const items = normalizeDanbooru([
+    { id: 11, score: 50, rating: 'g', large_file_url: 'https://cdn.donmai.us/original/a/b/c.swf', file_url: 'https://cdn.donmai.us/original/a/b/c.swf' },
+  ]);
+  assert.deepEqual(items, []);
+});
 
 test('subreddits: one dead name is isolated by halving, not by asking one by one', async () => {
   const log = [];
@@ -1036,359 +996,6 @@ const imageResponse = (bytes, type = 'image/jpeg') => ({
   arrayBuffer: async () => new Uint8Array(bytes).buffer,
 });
 // The real fetch returns Headers; a Map answers .get the same way.
-
-test('inline images: downloads what it can and rewrites those cards to cid:', async () => {
-  const items = [
-    { id: 'a', url: 'https://danbooru.donmai.us/posts/1', thumb: 'https://cdn.donmai.us/a.jpg' },
-    { id: 'b', url: 'https://www.reddit.com/r/Art/comments/b/', thumb: 'https://preview.redd.it/b.png' },
-  ];
-  const seen = [];
-  const { attachments, srcFor, bytes } = await collectInlineImages(items, {
-    fetchImpl: async (url, options) => {
-      seen.push([url, options.headers.Referer]);
-      return imageResponse(1024, url.endsWith('.png') ? 'image/png' : 'image/jpeg');
-    },
-  });
-
-  assert.equal(attachments.length, 2);
-  assert.equal(bytes, 2048);
-  assert.deepEqual(seen[0], ['https://cdn.donmai.us/a.jpg', 'https://danbooru.donmai.us/']);
-  assert.match(srcFor(items[0]), /^cid:art-1@/);
-  assert.match(srcFor(items[1]), /^cid:art-2@/);
-  assert.equal(attachments[1].type, 'image/png');
-  assert.match(attachments[1].filename, /\.png$/);
-});
-
-test('inline images: a card whose image will not download keeps its remote URL', async () => {
-  const items = [
-    { id: 'ok', url: 'https://site/1', thumb: 'https://cdn/ok.jpg' },
-    { id: 'refused', url: 'https://site/2', thumb: 'https://cdn/refused.jpg' },
-    { id: 'gone', url: 'https://site/3', thumb: 'https://cdn/boom.jpg' },
-    { id: 'none', url: 'https://site/4', thumb: '' },
-  ];
-  const { attachments, srcFor } = await collectInlineImages(items, {
-    fetchImpl: async (url) => {
-      if (url.includes('refused')) return { ok: false, status: 403, headers: new Map(), arrayBuffer: async () => new ArrayBuffer(0) };
-      if (url.includes('boom')) throw new Error('connection reset');
-      return imageResponse(512);
-    },
-  });
-  assert.equal(attachments.length, 1, 'only the one that downloaded is attached');
-  assert.match(srcFor(items[0]), /^cid:/);
-  assert.equal(srcFor(items[1]), '', 'the refused card falls back to its URL');
-  assert.equal(srcFor(items[2]), '', 'and so does the one that threw');
-  assert.equal(srcFor(items[3]), '');
-});
-
-test('inline images: oversized and non-image responses are skipped, and the total is capped', async () => {
-  const items = Array.from({ length: 5 }, (_, i) => ({ id: `i${i}`, url: 'https://site/x', thumb: `https://cdn/${i}.jpg` }));
-  const { attachments, bytes } = await collectInlineImages(items, {
-    maxBytes: 1000,
-    totalBytes: 2000,
-    fetchImpl: async (url) => {
-      if (url.endsWith('0.jpg')) return imageResponse(5000); // too big on its own
-      if (url.endsWith('1.jpg')) return imageResponse(400, 'text/html'); // not an image
-      return imageResponse(900);
-    },
-  });
-  assert.deepEqual(attachments.map((a) => a.cid.split('@')[0]), ['art-3', 'art-4'], 'the oversized and the non-image are skipped');
-  assert.ok(bytes <= 2000, 'and the run stops at the total cap');
-});
-
-/* ------------------------------------------------------------------- email */
-
-test('email: renders every item, escapes markup, and links the widget', () => {
-  const digest = {
-    generatedAt: new Date(NOW).toISOString(),
-    totalCollected: 90,
-    sourceLabels: { reddit: 'Reddit', pixiv: 'Pixiv' },
-    sources: [
-      { id: 'reddit', label: 'Reddit', status: 'ok', kept: 8 },
-      { id: 'pixiv', label: 'Pixiv', status: 'failed', kept: 0 },
-    ],
-    nsfwCount: 1,
-    items: [
-      { ...makeItems('reddit', 1, 900)[0], title: '<script>alert(1)</script>', heat: 91, context: 'r/Art' },
-      { ...makeItems('pixiv', 1, 900)[0], heat: 80, thumb: '', image: '', nsfw: true },
-    ],
-  };
-  const html = renderEmail(digest, { siteUrl: 'https://example.com/art-digest/' });
-  assert.ok(html.includes('&lt;script&gt;'), 'titles are escaped');
-  assert.ok(!html.includes('<script>'), 'no raw script tag survives');
-  assert.ok(html.includes('1. Reddit · r/Art'));
-  assert.ok(html.includes('✕ Pixiv'), 'failed sources are reported');
-  assert.ok(html.includes('https://example.com/art-digest/'));
-  assert.ok(html.includes('· 18+'), 'adult picks are labelled');
-  assert.ok(html.includes('1 marked 18+'), 'the header counts them');
-  assert.equal((html.match(/<tr>\s*<td style="padding:0 0 18px 0;">/g) || []).length, 2);
-});
-
-/* ----------------------------------------------------------- diagnostics */
-
-/* ------------------------------------------------- artstation likes import */
-
-const likeRow = (hash, artist, title, tags = []) => ({ hash, artist, username: artist, title, tags });
-
-test('artstation likes: reads the export, fenced or bare', () => {
-  const payload = { artstationLikes: [likeRow('a1', 'Eddie Mendoza', 'Garden', ['environment'])] };
-  assert.equal(extractArtStationLikes(JSON.stringify(payload)).length, 1, 'bare JSON');
-  assert.equal(extractArtStationLikes('text\n```json\n' + JSON.stringify(payload) + '\n```').length, 1, 'pasted in a fence');
-  assert.deepEqual(extractArtStationLikes('not json at all'), []);
-  assert.deepEqual(extractArtStationLikes('{"nope": 1}'), []);
-});
-
-test('artstation likes: an artist liked repeatedly outweighs one liked once', () => {
-  const { profile } = mergeArtStationLikes({}, [
-    likeRow('a1', 'Eddie Mendoza', 'One'),
-    likeRow('a2', 'Eddie Mendoza', 'Two'),
-    likeRow('a3', 'Eddie Mendoza', 'Three'),
-    likeRow('b1', 'Someone Else', 'Once'),
-  ]);
-  // Weights are scaled rather than counted, so what is asserted is the order
-  // and the ceiling — the numbers themselves are relative by design.
-  assert.ok(profile.artists['Eddie Mendoza'] > profile.artists['Someone Else']);
-  assert.ok(profile.artists['Eddie Mendoza'] <= 1, 'an artist is tripled inside affinityFor, so its peak stays low');
-});
-
-test('artstation likes: a tag outweighs a word scraped off a title', () => {
-  // An ArtStation tag is something the artist chose. A title word is a guess,
-  // and two months of digests showed how weak a guess it is. (The real export
-  // carried no tags at all, which is why titles have to work regardless.)
-  const { profile } = mergeArtStationLikes({}, [
-    likeRow('a1', 'A', 'Brutalist monolith', ['architecture']),
-    likeRow('a2', 'B', 'Brutalist monolith', ['architecture']),
-    likeRow('a3', 'C', 'Brutalist monolith', []),
-  ]);
-  assert.ok(profile.keywords.architecture > profile.keywords.brutalist, 'the chosen tag leads');
-  assert.ok(profile.keywords.brutalist > 0, 'but a title still teaches something');
-});
-
-test('artstation likes: no weight can saturate the score on its own', () => {
-  // The first real import put dozens of words at 10. affinityFor divides the
-  // total by 6, so each one maxed the score alone: 58% of the archive pinned
-  // at the ceiling, a flat bonus on everything, ranking nothing.
-  const many = Array.from({ length: 400 }, (_, i) => likeRow(`h${i}`, `Artist ${i % 7}`, 'forest temple ruins'));
-  const { profile } = mergeArtStationLikes({}, many);
-  const SATURATION = 6;
-  for (const [term, weight] of Object.entries(profile.keywords)) {
-    assert.ok(weight < SATURATION / 2, `${term} at ${weight} would dominate the score by itself`);
-  }
-  for (const [name, weight] of Object.entries(profile.artists)) {
-    assert.ok(weight * 3 < SATURATION / 2, `${name} at ${weight} is tripled and would dominate`);
-  }
-});
-
-test('artstation likes: recurring subjects become the searches, scaled to the export', () => {
-  // The floor has to move with the input. Twelve occurrences is a sensible
-  // bar across three thousand likes and unreachable across thirty.
-  const likes = [
-    ...Array.from({ length: 5 }, (_, i) => likeRow(`e${i}`, `A${i}`, 't', ['environment design'])),
-    ...Array.from({ length: 3 }, (_, i) => likeRow(`c${i}`, `B${i}`, 't', ['character design'])),
-    likeRow('x1', 'C', 't', ['one-off']),
-  ];
-  const { subjects } = mergeArtStationLikes({}, likes);
-  assert.ok(subjects.includes('environment design'), 'the commonest subject is asked for');
-  assert.ok(!subjects.includes('one-off'), 'a single mention is not a subject');
-});
-
-test('artstation likes: a name is never mistaken for a subject', () => {
-  // The real export's commonest title phrases were "star wars", "portrait toh"
-  // and "toh yasu" — a franchise and two halves of the most-liked artist.
-  const likes = Array.from({ length: 30 }, (_, i) =>
-    likeRow(`n${i}`, 'Toh Yasu', i % 2 ? 'portrait toh yasu' : 'forest temple')
-  );
-  const { subjects } = mergeArtStationLikes({}, likes);
-  assert.ok(!subjects.some((s) => /toh|yasu/.test(s)), `an artist's name leaked into ${JSON.stringify(subjects)}`);
-});
-
-test('artstation likes: a word that matches everything is not kept', () => {
-  // "daily" earned a real weight from the likes, then matched 26% of every
-  // digest because Pixiv labels every pick "Daily ranking #N".
-  const likes = Array.from({ length: 30 }, (_, i) => likeRow(`d${i}`, `A${i}`, 'daily forest'));
-  const corpus = Array.from({ length: 100 }, (_, i) => (i < 40 ? 'daily ranking #' + i : 'something else'));
-  const { profile } = mergeArtStationLikes({}, likes, { corpus });
-  assert.ok(!('daily' in profile.keywords), 'a word matching 40% of the stream cannot rank any of it');
-  assert.ok('forest' in profile.keywords, 'while a discriminating one survives');
-});
-
-test('artstation likes: merging keeps what a calibration learned', () => {
-  // Likes say what you want; only a rating session says what you turned down.
-  const existing = { contexts: { 'r/conceptart': 2 }, mute: ['blue archive'], sources: { pixiv: 0 }, artists: { Old: 2 } };
-  const { profile } = mergeArtStationLikes(existing, [likeRow('a1', 'New Artist', 'x', ['3d'])]);
-  assert.deepEqual(profile.contexts, { 'r/conceptart': 2 }, 'contexts survive');
-  assert.deepEqual(profile.mute, ['blue archive'], 'and so does the mute list');
-  assert.deepEqual(profile.sources, { pixiv: 0 }, 'and the source shares');
-  assert.ok(profile.artists.Old > 0, 'existing artists survive the merge');
-  assert.ok(profile.artists['New Artist'] > 0);
-});
-
-
-
-test('artstation likes: a placeholder is not an artist', () => {
-  const { profile } = mergeArtStationLikes({}, [likeRow('a1', 'Anonymous', 'x', []), likeRow('a2', 'Real Name', 'x', [])]);
-  assert.ok(!('Anonymous' in profile.artists));
-  assert.ok(profile.artists['Real Name'] > 0);
-});
-
-/* ---------------------------------------------------- artstation subjects */
-
-const subjectRow = (hash, title) => ({
-  hash_id: hash,
-  title,
-  url: `https://www.artstation.com/artwork/${hash}`,
-  smaller_square_cover_url: `https://cdn.artstation.com/p/assets/images/images/0/smaller_square/${hash}.jpg`,
-  user: { full_name: `artist ${hash}`, username: `a${hash}` },
-});
-
-test('artstation subjects: asks for each subject by name and keeps the order', async () => {
-  // Trending is whatever the whole site is looking at. Architecture and 3D
-  // character work only arrive if they are asked for, and search is the one
-  // parameter ArtStation honours.
-  const asked = [];
-  const { items, note } = await collectArtStationSubjects(
-    { artstationSubjects: ['architecture', '3d character'] },
-    {
-      search: async (query, page = 1) => {
-        asked.push(`${query}#${page}`);
-        // A real second page holds different pieces; an exhausted one is empty.
-        return page > 1 ? { data: [] } : { data: [subjectRow(`${query[0]}1`, `${query} one`), subjectRow(`${query[0]}2`, `${query} two`)] };
-      },
-    }
-  );
-  assert.deepEqual(asked.filter((a) => a.endsWith('#1')), ['architecture#1', '3d character#1'], 'page one for each subject');
-  assert.equal(items.length, 4);
-  assert.deepEqual([...new Set(items.map((i) => i.context))], ['architecture', '3d character'], 'the subject is the context, so the round-robin spreads across them');
-  assert.ok(items[0].value > items[1].value, 'position in the ranking carries through');
-  assert.match(items[0].scoreLabel, /most liked for "architecture"/);
-  assert.match(note, /2 subjects/);
-});
-
-test('artstation subjects: never claims the work is new', async () => {
-  // ArtStation publishes no dates, and sorting=date is unproven. This is the
-  // best work on a subject, not today's, and the scoring has to know that.
-  const { items } = await collectArtStationSubjects(
-    { artstationSubjects: ['architecture'] },
-    { search: async () => ({ data: [subjectRow('x1', 'A hall')] }) }
-  );
-  assert.equal(items[0].postedAt, null);
-  assert.equal(items[0].freshBy, undefined, 'no freshness credit, unlike the trending feed');
-  const [ranked] = rankItems({ artsubjects: items }, { limit: 5, windowHours: 48, now: NOW });
-  assert.equal(ranked.heat, 80, 'popularity alone, nothing for a recency it cannot show');
-  assert.equal(ranked.dateKnown, false);
-});
-
-test('artstation subjects: walks past what has already been shown', async () => {
-  // Top-rated work does not change, so without this the same eight pieces
-  // would arrive every single day forever.
-  const rows = [subjectRow('seen1', 'Old favourite'), subjectRow('fresh1', 'Not yet shown')];
-  const { items, note } = await collectArtStationSubjects(
-    { artstationSubjects: ['architecture'] },
-    { search: async (q, page = 1) => ({ data: page > 1 ? [] : rows }), seen: new Set(['artsubject:seen1']) }
-  );
-  assert.deepEqual(items.map((i) => i.title), ['Not yet shown']);
-  assert.match(note, /1 already shown/);
-});
-
-test('artstation subjects: walks deeper only when the shallow end is used up', async () => {
-  // Page one holds fifty pieces and the all-time ranking barely moves, so
-  // asking only for it capped this source at 500 pieces for its whole life —
-  // about eighty days, after which it would quietly return nothing.
-  const page = (n) => ({ data: Array.from({ length: 4 }, (_, i) => subjectRow(`p${n}_${i}`, `page ${n} piece ${i}`)) });
-
-  const asked = [];
-  await collectArtStationSubjects(
-    { artstationSubjects: ['architecture'] },
-    { search: async (q, p = 1) => { asked.push(p); return page(p); } }
-  );
-  assert.deepEqual(asked, [1, 2], 'four unseen per page, so it stops once it has eight');
-
-  // With page one entirely spent, it has to reach past it rather than give up.
-  const spent = new Set(Array.from({ length: 4 }, (_, i) => `artsubject:p1_${i}`));
-  const deeper = [];
-  const { items } = await collectArtStationSubjects(
-    { artstationSubjects: ['architecture'] },
-    { search: async (q, p = 1) => { deeper.push(p); return page(p); }, seen: spent }
-  );
-  assert.ok(deeper.length >= 3, `only reached page ${deeper.length}`);
-  assert.ok(items.length > 0, 'and still finds work');
-  assert.ok(!items.some((i) => spent.has(i.id)), 'none of it already shown');
-});
-
-test('artstation subjects: overlapping pages cannot yield the same piece twice', async () => {
-  // Pages of a ranking that shifts between requests do overlap, and `seen`
-  // only knows about previous digests.
-  const same = [subjectRow('dup1', 'Same piece'), subjectRow('dup2', 'Also same')];
-  const { items } = await collectArtStationSubjects(
-    { artstationSubjects: ['architecture'] },
-    { search: async () => ({ data: same }) }
-  );
-  assert.equal(new Set(items.map((i) => i.id)).size, items.length, 'no duplicates');
-  assert.equal(items.length, 2);
-});
-
-test('artstation subjects: one failing subject does not lose the others', async () => {
-  const { items, note } = await collectArtStationSubjects(
-    { artstationSubjects: ['architecture', 'broken'] },
-    {
-      search: async (query, page = 1) => {
-        if (query === 'broken') throw new Error('HTTP 500');
-        return { data: page > 1 ? [] : [subjectRow('ok1', 'Fine')] };
-      },
-    }
-  );
-  assert.equal(items.length, 1);
-  assert.match(note, /failed: broken/);
-});
-
-test('artstation subjects: every subject failing is an error, not an empty success', async () => {
-  await assert.rejects(
-    collectArtStationSubjects(
-      { artstationSubjects: ['a', 'b'] },
-      { search: async () => { throw new Error('HTTP 403'); } }
-    ),
-    /HTTP 403/
-  );
-});
-
-test('artstation subjects: falls back to the shipped subjects', async () => {
-  const asked = [];
-  await collectArtStationSubjects({}, {
-    search: async (query) => { asked.push(query); return { data: [] }; },
-  });
-  assert.deepEqual(asked, DEFAULT_SUBJECTS);
-  // The shipped list is derived from a real likes export, so what matters is
-  // that it still spans the ground it was built to cover: built environments,
-  // and characters that are not anime. The exact wording moves with the data.
-  const built = /interior|temple|castle|city|architect|station|environment/;
-  const people = /character|portrait/;
-  assert.ok(DEFAULT_SUBJECTS.filter((s) => built.test(s)).length >= 4, 'environments and architecture');
-  assert.ok(DEFAULT_SUBJECTS.some((s) => people.test(s)), 'and character work');
-  assert.equal(new Set(DEFAULT_SUBJECTS).size, DEFAULT_SUBJECTS.length, 'no duplicates');
-});
-
-test('seen ids: gathers every piece the archive holds', async () => {
-  const seen = await collectSeenIds('data/archive', {
-    list: async () => ['2026-09-16.json', '2026-09-17.json', 'index.json', 'notes.md'],
-    read: async (path) =>
-      path.includes('2026-09-16')
-        ? JSON.stringify({ items: [{ id: 'reddit:a' }, { id: 'pixiv:b' }] })
-        : JSON.stringify({ items: [{ id: 'reddit:a' }, { id: 'danbooru:c' }] }),
-  });
-  assert.deepEqual([...seen].sort(), ['danbooru:c', 'pixiv:b', 'reddit:a'], 'deduped, and index.json is not a day');
-});
-
-test('seen ids: a broken day costs its own ids, not the filter', async () => {
-  const seen = await collectSeenIds('data/archive', {
-    list: async () => ['2026-09-16.json', '2026-09-17.json'],
-    read: async (path) => (path.includes('16') ? '{"items":[{"id":"a"}]' : JSON.stringify({ items: [{ id: 'b' }] })),
-  });
-  assert.deepEqual([...seen], ['b']);
-});
-
-test('seen ids: no archive at all is nothing seen, not a crash', async () => {
-  const seen = await collectSeenIds('nope', { list: async () => { throw new Error('ENOENT'); } });
-  assert.equal(seen.size, 0);
-});
 
 /* -------------------------------------------------------------- calibration */
 

@@ -124,10 +124,11 @@
     const shade = el('div', 'rate-shot');
     if (isSafeUrl(item.thumb)) {
       const img = el('img');
-      img.src = item.thumb;
+      img.referrerPolicy = 'no-referrer'; // before src, or it is never sent
       img.alt = '';
       img.loading = 'eager';
       img.decoding = 'async';
+      img.src = item.thumb;
       if (item.nsfw && state.blur) img.classList.add('blurred');
       img.addEventListener('error', () => {
         img.remove();

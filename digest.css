@@ -12,8 +12,7 @@
   --subjects: #7bdcb5;
   --reddit: #ff4500;
   --pixiv: #3d9bff;
-  --deviantart: #00e59b;
-  --bluesky: #a78bfa;
+  --ok: #00e59b;
   --danbooru: #ffc247;
   --nsfw: #ff5d8f;
   --radius: 14px;
@@ -417,7 +416,7 @@ body {
 
 .source-report { display: flex; flex-wrap: wrap; gap: 8px 16px; font-size: 0.8rem; color: var(--muted); }
 
-.source-report .ok::before { content: "✓ "; color: var(--deviantart); }
+.source-report .ok::before { content: "✓ "; color: var(--ok); }
 .source-report .bad::before { content: "✕ "; color: var(--reddit); }
 
 .fine { color: var(--muted); font-size: 0.75rem; margin-top: 10px; }

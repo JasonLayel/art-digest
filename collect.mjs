@@ -3,19 +3,18 @@
  * Digital Art Digest — collector.
  *
  * Pulls the most popular *new* digital art from ArtStation, Reddit, Pixiv and
- * DeviantArt, normalizes every post into one shape, ranks them across sources
+ * and Danbooru, normalizes every post into one shape, ranks them across sources
  * and writes:
  *
  *   data/latest.json          the feed the widget reads
  *   data/archive/<date>.json  one snapshot per run, kept for history
  *   data/archive/index.json   which days exist, so the widget can offer them
- *   data/email.html           a ready-to-send HTML digest
  *
  * Zero dependencies, Node 20+. Runs in CI (see .github/workflows/art-digest.yml)
  * because the art sites are only reachable from an unrestricted network.
  *
  * Env knobs (all optional):
- *   ART_DIGEST_LIMIT          how many items to keep       (default 24)
+ *   ART_DIGEST_LIMIT          how many items to keep       (default 36)
  *   ART_DIGEST_WINDOW_HOURS   "new" cutoff                 (default 48)
  *   ART_DIGEST_SUBS           comma-separated subreddits
  *   ART_DIGEST_OUT            output directory             (default ./data)
@@ -64,7 +63,7 @@ export const ADULT_SUBS = new Set(
 const splitList = (value) => (value || '').split(',').map((s) => s.trim()).filter(Boolean);
 
 const CONFIG = {
-  limit: int(process.env.ART_DIGEST_LIMIT, 24),
+  limit: int(process.env.ART_DIGEST_LIMIT, 36),
   windowHours: int(process.env.ART_DIGEST_WINDOW_HOURS, 48),
   outDir: resolve(process.env.ART_DIGEST_OUT || join(HERE, 'data')),
   subs: [
@@ -73,10 +72,6 @@ const CONFIG = {
       ...splitList(process.env.ART_DIGEST_EXTRA_SUBS),
     ]),
   ],
-  // Bluesky hashtags to search, comma-separated.
-  tags: splitList(process.env.ART_DIGEST_TAGS) .length
-    ? splitList(process.env.ART_DIGEST_TAGS)
-    : ['conceptart', 'characterart', 'dnd', 'fanart', 'digitalart'],
   sources: splitList(process.env.ART_DIGEST_SOURCES),
   // What to ask ArtStation for by name. Search is the only filter it honours,
   // so these decide whether architecture and 3D character work reach the
@@ -664,237 +659,19 @@ async function collectPixiv(cfg) {
   return { items, fetched, note, sample: sampleShape(payload?.contents?.[0]) };
 }
 
-/** DeviantArt: the popular-this-week RSS feed for digital art. */
-export function normalizeDeviantArt(xml) {
-  const blocks = String(xml).split(/<item>/).slice(1).map((b) => b.split(/<\/item>/)[0]);
-  const attr = (block, tag, name) => {
-    const m = block.match(new RegExp(`<${tag}[^>]*\\b${name}="([^"]*)"`, 'i'));
-    return m ? decodeEntities(m[1]) : '';
-  };
-  const tag = (block, name) => {
-    const m = block.match(new RegExp(`<${name}[^>]*>([\\s\\S]*?)</${name}>`, 'i'));
-    if (!m) return '';
-    return clean(m[1].replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, '$1').replace(/<[^>]+>/g, ''));
-  };
-
-  return blocks.map((block, index) => {
-      const thumbs = [...block.matchAll(/<media:thumbnail[^>]*url="([^"]*)"/gi)].map((m) => decodeEntities(m[1]));
-      const full = attr(block, 'media:content', 'url');
-      const author = tag(block, 'media:credit') || attr(block, 'media:credit', 'url');
-      const link = tag(block, 'link');
-      return {
-        id: `deviantart:${(link.match(/-(\d+)$/) || [])[1] || index}`,
-        source: 'deviantart',
-        title: tag(block, 'title') || 'Untitled',
-        artist: clean(author),
-        artistUrl: author ? `https://www.deviantart.com/${author.toLowerCase()}` : '',
-        url: https(link),
-        image: https(full || thumbs.at(-1) || ''),
-        thumb: https(thumbs.at(-1) || full || ''),
-        // The feed is already ordered by popularity but carries no counts, so
-        // position in the feed is the only signal available.
-        value: Math.max(1, blocks.length - index),
-        scoreLabel: `#${index + 1} most popular`,
-        nsfw: /<media:rating>\s*adult/i.test(block),
-        postedAt: (() => {
-          const d = new Date(tag(block, 'pubDate'));
-          return Number.isNaN(d.valueOf()) ? null : d.toISOString();
-        })(),
-        context: 'Popular now',
-      };
-    })
-    .filter((item) => item.url && (item.image || item.thumb));
-}
-
-/**
- * DeviantArt's official API, used when app credentials are configured. Its RSS
- * feed is behind bot protection that turns away CI runners, so credentials are
- * the only reliable route from a datacenter.
- */
-export function normalizeDeviantArtApi(payload) {
-  return (payload?.results ?? [])
-    .filter((d) => d && !d.is_deleted)
-    .map((d) => ({
-      id: `deviantart:${d.deviationid}`,
-      source: 'deviantart',
-      title: clean(d.title) || 'Untitled',
-      artist: clean(d.author?.username || ''),
-      artistUrl: d.author?.username ? `https://www.deviantart.com/${d.author.username}` : '',
-      url: https(d.url || ''),
-      image: https(pick(d.content?.src, d.preview?.src, d.thumbs?.at(-1)?.src)),
-      thumb: https(pick(d.preview?.src, d.thumbs?.at(-1)?.src, d.content?.src)),
-      tags: (d.tags || []).map((t) => (typeof t === 'string' ? t : t?.tag_name)).filter(Boolean),
-      value: Number(d.stats?.favourites) || 0,
-      scoreLabel: `${compact(Number(d.stats?.favourites) || 0)} favourites`,
-      nsfw: Boolean(d.is_mature),
-      postedAt: iso(Number(d.published_time)),
-      context: 'Daily Deviation',
-    }))
-    .filter((item) => item.url && (item.image || item.thumb));
-}
-
-async function deviantArtToken() {
-  if (!process.env.DEVIANTART_CLIENT_ID || !process.env.DEVIANTART_CLIENT_SECRET) return null;
-  try {
-    const url =
-      'https://www.deviantart.com/oauth2/token?grant_type=client_credentials' +
-      `&client_id=${encodeURIComponent(process.env.DEVIANTART_CLIENT_ID)}` +
-      `&client_secret=${encodeURIComponent(process.env.DEVIANTART_CLIENT_SECRET)}`;
-    return (await get(url, { attempts: 2 }))?.access_token || null;
-  } catch {
-    return null;
-  }
-}
-
-async function collectDeviantArt(cfg = {}) {
-  const token = await deviantArtToken();
-  if (token) {
-    const mature = cfg.nsfw === 'exclude' ? 'false' : 'true';
-    const payload = await get(
-      `https://www.deviantart.com/api/v1/oauth2/browse/dailydeviations?mature_content=${mature}&access_token=${token}`,
-      { headers: { 'User-Agent': BROWSER_UA } }
-    );
-    const items = normalizeDeviantArtApi(payload);
-    return {
-      items,
-      fetched: (payload?.results ?? []).length,
-      note: 'via the API',
-      sample: sampleShape(payload?.results?.[0]),
-    };
-  }
-
-  const query = encodeURIComponent('boost:popular max_age:24h in:digitalart');
-  const xml = await getFirst(
-    [
-      `https://backend.deviantart.com/rss.xml?type=deviation&q=${query}&limit=60`,
-      `https://www.deviantart.com/rss.xml?type=deviation&q=${query}&limit=60`,
-      // Without the age filter the feed is served from a different cache and
-      // sometimes answers when the filtered one does not.
-      `https://backend.deviantart.com/rss.xml?type=deviation&q=${encodeURIComponent('boost:popular in:digitalart')}&limit=60`,
-    ],
-    { as: 'text', headers: { 'User-Agent': BROWSER_UA, Accept: 'application/rss+xml,text/xml' } }
-  );
-  const items = normalizeDeviantArt(xml);
-  return {
-    items,
-    fetched: (String(xml).match(/<item>/g) || []).length,
-    note: 'via RSS',
-    sample: items.length ? undefined : String(xml).slice(0, 400),
-  };
-}
-
-/**
- * Bluesky: the art hashtags, ranked by likes. The public AppView needs no
- * credentials, which is why it is the one "everywhere else" outlet here that
- * works out of the box.
- */
-export function normalizeBluesky(payload, tag = '') {
-  return (payload?.posts ?? [])
-    .map((post) => {
-      const embed = post.embed?.images ? post.embed : post.embed?.media;
-      const image = embed?.images?.[0];
-      const handle = post.author?.handle || '';
-      const rkey = String(post.uri || '').split('/').pop();
-      const text = clean(post.record?.text || '');
-      const labels = [
-        ...(post.labels || []).map((l) => l.val),
-        ...(image?.labels || []).map((l) => l.val),
-      ];
-      return {
-        id: `bluesky:${rkey}`,
-        source: 'bluesky',
-        title: text.split(/[.!?\n]/)[0].slice(0, 120) || 'Untitled',
-        artist: clean(post.author?.displayName || (handle ? `@${handle}` : '')),
-        artistUrl: handle ? `https://bsky.app/profile/${handle}` : '',
-        url: handle && rkey ? `https://bsky.app/profile/${handle}/post/${rkey}` : '',
-        image: https(image?.fullsize || ''),
-        thumb: https(image?.thumb || image?.fullsize || ''),
-        thumbFallbacks: [https(image?.fullsize || '')].filter(Boolean),
-        tags: [...text.matchAll(/#([a-z0-9_]{2,30})/gi)].map((m) => m[1]),
-        value: Number(post.likeCount) || 0,
-        scoreLabel: `${compact(Number(post.likeCount) || 0)} likes`,
-        postedAt: post.record?.createdAt || post.indexedAt || null,
-        nsfw: labels.some((val) => /porn|sexual|nudity|graphic-media/i.test(val)),
-        context: tag ? `#${tag}` : 'Bluesky',
-      };
-    })
-    .filter((item) => item.url && item.thumb);
-}
-
-async function blueskyToken() {
-  const identifier = process.env.BLUESKY_IDENTIFIER;
-  const password = process.env.BLUESKY_APP_PASSWORD;
-  if (!identifier || !password) return null;
-  try {
-    const res = await fetch('https://bsky.social/xrpc/com.atproto.server.createSession', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'User-Agent': BOT_UA },
-      body: JSON.stringify({ identifier, password }),
-      signal: AbortSignal.timeout(25_000),
-    });
-    if (!res.ok) return null;
-    return (await res.json()).accessJwt || null;
-  } catch {
-    return null;
-  }
-}
-
-async function collectBluesky(cfg) {
-  const token = await blueskyToken();
-  const search = (host, headers) => (tag) =>
-    get(
-      `${host}/xrpc/app.bsky.feed.searchPosts?q=${encodeURIComponent(`#${tag}`)}&sort=top&limit=25`,
-      { headers: { Accept: 'application/json', ...headers }, attempts: 2 }
-    );
-
-  // The public AppView answers 403 to some datacenter traffic, so fall back to
-  // a browser agent and then to an authenticated session when one is configured.
-  const routes = [
-    { name: 'public', run: search('https://public.api.bsky.app', {}) },
-    { name: 'public (browser agent)', run: search('https://public.api.bsky.app', { 'User-Agent': BROWSER_UA }) },
-    token && {
-      name: 'signed in',
-      run: search('https://bsky.social', { Authorization: `Bearer ${token}` }),
-    },
-  ].filter(Boolean);
-
-  const items = [];
-  const failed = [];
-  let fetched = 0;
-  let working = null;
-
-  for (const tag of cfg.tags) {
-    for (const route of working ? [working] : routes) {
-      try {
-        const payload = await route.run(tag);
-        fetched += (payload?.posts ?? []).length;
-        items.push(...normalizeBluesky(payload, tag));
-        working = route;
-        break;
-      } catch (err) {
-        if (route === routes.at(-1)) failed.push(`#${tag} (${err.message})`);
-      }
-    }
-    await sleep(400);
-  }
-
-  if (!items.length) throw new Error(failed.join('; ') || 'no posts returned');
-  return {
-    items,
-    fetched,
-    note: [
-      working && working.name !== 'public' ? `via ${working.name}` : '',
-      failed.length ? `skipped ${failed.length} tag(s)` : '',
-    ].filter(Boolean).join(' · '),
-  };
-}
-
 /**
  * Danbooru: the day's highest-scoring fan art. Anonymous searches allow two
  * tags, which `order:score age:1d` uses up, so ratings are filtered here
  * instead of in the query.
  */
 const DANBOORU_RATINGS = { g: 'general', s: 'sensitive', q: 'questionable', e: 'explicit' };
+
+/** Danbooru serves video and flash posts too; an <img> can show none of them. */
+const RENDERABLE = /\.(jpe?g|png|gif|webp|avif)(\?|$)/i;
+const pickImage = (...urls) => urls.find((url) => url && RENDERABLE.test(String(url))) || '';
+/** A sized jpg Danbooru renders for every post, video ones included. */
+const variant = (post, type) =>
+  (post?.media_asset?.variants || []).find((v) => v?.type === type)?.url || '';
 
 export function normalizeDanbooru(rows) {
   return (Array.isArray(rows) ? rows : [])
@@ -916,9 +693,17 @@ export function normalizeDanbooru(rows) {
             ? `https://danbooru.donmai.us/posts?tags=${encodeURIComponent(artist)}`
             : '',
         url: `https://danbooru.donmai.us/posts/${p.id}`,
-        image: https(pick(p.large_file_url, p.file_url, p.preview_file_url)),
-        thumb: https(pick(p.large_file_url, p.preview_file_url, p.file_url)),
-        thumbFallbacks: [https(pick(p.preview_file_url)), https(pick(p.file_url))].filter(Boolean),
+        image: https(pickImage(p.large_file_url, variant(p, '720x720'), p.file_url, p.preview_file_url)),
+        // large_file_url is the original on a video post, so on 17% of a
+        // month's picks the thumbnail shipped was an .mp4 — nothing an <img>
+        // can ever render, and those cards were blank. Danbooru's sized
+        // variants and preview are jpgs whatever the post is.
+        thumb: https(pickImage(variant(p, '360x360'), p.large_file_url, p.preview_file_url)),
+        thumbFallbacks: [
+          https(pickImage(p.preview_file_url)),
+          https(pickImage(variant(p, '720x720'))),
+          https(pickImage(variant(p, '180x180'))),
+        ].filter(Boolean),
         tags: [
           ...(p.tag_string_character || '').split(/\s+/),
           ...(p.tag_string_copyright || '').split(/\s+/),
@@ -1178,8 +963,6 @@ export const SOURCES = [
   { id: 'artstation', label: 'ArtStation', home: 'https://www.artstation.com', collect: collectArtStation },
   { id: 'reddit', label: 'Reddit', home: 'https://www.reddit.com', collect: collectReddit },
   { id: 'pixiv', label: 'Pixiv', home: 'https://www.pixiv.net', collect: collectPixiv },
-  { id: 'deviantart', label: 'DeviantArt', home: 'https://www.deviantart.com', collect: collectDeviantArt },
-  { id: 'bluesky', label: 'Bluesky', home: 'https://bsky.app', collect: collectBluesky },
   { id: 'danbooru', label: 'Danbooru', home: 'https://danbooru.donmai.us', collect: collectDanbooru },
   { id: 'artsubjects', label: 'ArtStation subjects', home: 'https://www.artstation.com', collect: collectArtStationSubjects },
 ];
@@ -1506,84 +1289,6 @@ const SOURCE_COLORS = {
 };
 
 /** Table-based HTML so it survives email clients. */
-export function renderEmail(digest, { siteUrl = CONFIG.siteUrl, imageSrc = null } = {}) {
-  const date = new Date(digest.generatedAt).toLocaleDateString('en-US', {
-    weekday: 'long', month: 'long', day: 'numeric', year: 'numeric', timeZone: 'UTC',
-  });
-
-  const cards = digest.items
-    .map((item, index) => {
-      const color = SOURCE_COLORS[item.source] || '#8b5cf6';
-      // The sender can swap in a cid: reference for an image it attached, so
-      // the message carries its own pictures instead of asking the reader's
-      // mail client to fetch them.
-      const thumb = (imageSrc && imageSrc(item)) || item.thumb || item.image;
-      return `
-      <tr>
-        <td style="padding:0 0 18px 0;">
-          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #e6e1ea;border-radius:12px;overflow:hidden;background:#ffffff;">
-            <tr>
-              <td width="120" valign="top" style="padding:0;">
-                ${thumb
-                  ? `<a href="${esc(item.url)}"><img src="${esc(thumb)}" width="120" alt="" style="display:block;width:120px;height:120px;object-fit:cover;border:0;"></a>`
-                  : `<div style="width:120px;height:120px;background:${color};"></div>`}
-              </td>
-              <td valign="top" style="padding:12px 16px;font-family:-apple-system,Segoe UI,Helvetica,Arial,sans-serif;">
-                <div style="font-size:11px;color:${color};font-weight:700;letter-spacing:.04em;text-transform:uppercase;">
-                  ${index + 1}. ${esc(digest.sourceLabels[item.source] || item.source)}${item.context ? ` · ${esc(item.context)}` : ''}${item.nsfw ? ' <span style="color:#d6336c;">· 18+</span>' : ''}
-                </div>
-                <div style="margin:4px 0 2px;font-size:16px;line-height:1.3;font-weight:600;">
-                  <a href="${esc(item.url)}" style="color:#1c1420;text-decoration:none;">${esc(item.title)}</a>
-                </div>
-                <div style="font-size:13px;color:#6b6270;">${esc(item.artist)}</div>
-                <div style="margin-top:6px;font-size:12px;color:#8a8194;">🔥 ${item.heat} · ${esc(item.scoreLabel)}${
-                  item.dateKnown === false ? ' · <span style="font-style:italic;">date unknown</span>' : ''
-                }</div>
-              </td>
-            </tr>
-          </table>
-        </td>
-      </tr>`;
-    })
-    .join('');
-
-  const sourceLine = digest.sources
-    .map((s) => `${s.status === 'ok' ? '✓' : '✕'} ${esc(s.label)}${s.status === 'ok' ? ` (${s.kept})` : ''}`)
-    .join(' &nbsp;·&nbsp; ');
-
-  return `<!DOCTYPE html>
-<html><body style="margin:0;padding:0;background:#f7f4f9;">
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f7f4f9;padding:24px 12px;">
-  <tr><td align="center">
-    <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;">
-      <tr><td style="padding-bottom:18px;font-family:-apple-system,Segoe UI,Helvetica,Arial,sans-serif;">
-        <div style="font-size:22px;font-weight:700;color:#1c1420;">🎨 Today's best new digital art</div>
-        <div style="font-size:13px;color:#6b6270;margin-top:4px;">${esc(date)} · top ${digest.items.length} of ${digest.totalCollected} new pieces${digest.nsfwCount ? ` · ${digest.nsfwCount} marked 18+` : ''}</div>
-      </td></tr>
-      ${cards}
-      <tr><td style="padding-top:6px;font-family:-apple-system,Segoe UI,Helvetica,Arial,sans-serif;font-size:12px;color:#8a8194;">
-        <div>Sources: ${sourceLine}</div>
-        <div style="margin-top:8px;"><a href="${esc(siteUrl)}" style="color:#e8489b;">Open the full widget →</a></div>
-      </td></tr>
-    </table>
-  </td></tr>
-</table>
-</body></html>`;
-}
-
-/* -------------------------------------------------------------------- feed */
-
-const rfc822 = (iso) => {
-  const d = new Date(iso);
-  return Number.isNaN(d.valueOf()) ? new Date().toUTCString() : d.toUTCString();
-};
-
-/**
- * One RSS item per artwork, so a reader tracks what has been seen piece by
- * piece rather than day by day. Readers fetch images themselves, from the
- * reader's own connection, which is why the feed can link them rather than
- * having to carry them the way the email does.
- */
 export function renderFeed(digest, { siteUrl = CONFIG.siteUrl, feedUrl = `${CONFIG.siteUrl}data/feed.xml` } = {}) {
   const items = digest.items
     .map((item) => {
@@ -1613,7 +1318,7 @@ export function renderFeed(digest, { siteUrl = CONFIG.siteUrl, feedUrl = `${CONF
     <title>Daily Digital Art Digest</title>
     <link>${esc(siteUrl)}</link>
     <atom:link href="${esc(feedUrl)}" rel="self" type="application/rss+xml"/>
-    <description>The most popular new digital art from ArtStation, Reddit, Pixiv, DeviantArt, Bluesky and Danbooru, collected daily and ranked together.</description>
+    <description>The most popular new digital art from ArtStation, Reddit, Pixiv and Danbooru, plus ArtStation searched for your own subjects, collected daily and ranked together.</description>
     <language>en</language>
     <lastBuildDate>${rfc822(digest.generatedAt)}</lastBuildDate>
     <ttl>720</ttl>
@@ -1723,7 +1428,6 @@ async function main() {
   const archiveDir = join(CONFIG.outDir, 'archive');
   const index = await buildArchiveIndex(archiveDir);
   await writeFile(join(archiveDir, 'index.json'), `${JSON.stringify(index, null, 2)}\n`);
-  await writeFile(join(CONFIG.outDir, 'email.html'), `${renderEmail(digest)}\n`);
   await writeFile(join(CONFIG.outDir, 'feed.xml'), renderFeed(digest));
 
   for (const s of digest.sources) {

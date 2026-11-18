@@ -17,8 +17,6 @@
     artstation: { label: 'ArtStation', color: 'var(--artstation)' },
     reddit: { label: 'Reddit', color: 'var(--reddit)' },
     pixiv: { label: 'Pixiv', color: 'var(--pixiv)' },
-    deviantart: { label: 'DeviantArt', color: 'var(--deviantart)' },
-    bluesky: { label: 'Bluesky', color: 'var(--bluesky)' },
     danbooru: { label: 'Danbooru', color: 'var(--danbooru)' },
     artsubjects: { label: 'Your subjects', color: 'var(--subjects)' },
   };
@@ -362,11 +360,15 @@
     const thumbUrl = item.thumb || item.image;
     if (isSafeUrl(thumbUrl)) {
       const img = el('img');
-      img.src = thumbUrl;
+      // Every attribute before src, and referrerPolicy above all: the browser
+      // begins fetching the instant src is assigned, so a policy set after it
+      // arrives too late to be sent. Danbooru's CDN refuses a request carrying
+      // our referrer, which is why those cards were blank for weeks while the
+      // line that was supposed to prevent it sat four lines below the fetch.
+      img.referrerPolicy = 'no-referrer';
       img.alt = '';
       img.loading = 'lazy';
       img.decoding = 'async';
-      img.referrerPolicy = 'no-referrer';
       // Derived thumbnails (ArtStation's upsized covers, Pixiv's mirror) can
       // stop resolving, so walk the source's fallbacks before giving up.
       const fallbacks = (item.thumbFallbacks || []).filter((url) => isSafeUrl(url) && url !== thumbUrl);
@@ -379,6 +381,7 @@
         img.remove();
         link.prepend(el('div', 'thumb-fallback', item.title));
       });
+      img.src = thumbUrl; // last, now that the policy and handler are in place
       link.append(img);
     } else {
       link.append(el('div', 'thumb-fallback', item.title));
