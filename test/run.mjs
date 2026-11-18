@@ -1248,13 +1248,14 @@ test('artstation subjects: asks for each subject by name and keeps the order', a
   const { items, note } = await collectArtStationSubjects(
     { artstationSubjects: ['architecture', '3d character'] },
     {
-      search: async (query) => {
-        asked.push(query);
-        return { data: [subjectRow(`${query[0]}1`, `${query} one`), subjectRow(`${query[0]}2`, `${query} two`)] };
+      search: async (query, page = 1) => {
+        asked.push(`${query}#${page}`);
+        // A real second page holds different pieces; an exhausted one is empty.
+        return page > 1 ? { data: [] } : { data: [subjectRow(`${query[0]}1`, `${query} one`), subjectRow(`${query[0]}2`, `${query} two`)] };
       },
     }
   );
-  assert.deepEqual(asked, ['architecture', '3d character'], 'one request per subject');
+  assert.deepEqual(asked.filter((a) => a.endsWith('#1')), ['architecture#1', '3d character#1'], 'page one for each subject');
   assert.equal(items.length, 4);
   assert.deepEqual([...new Set(items.map((i) => i.context))], ['architecture', '3d character'], 'the subject is the context, so the round-robin spreads across them');
   assert.ok(items[0].value > items[1].value, 'position in the ranking carries through');
@@ -1282,19 +1283,56 @@ test('artstation subjects: walks past what has already been shown', async () => 
   const rows = [subjectRow('seen1', 'Old favourite'), subjectRow('fresh1', 'Not yet shown')];
   const { items, note } = await collectArtStationSubjects(
     { artstationSubjects: ['architecture'] },
-    { search: async () => ({ data: rows }), seen: new Set(['artsubject:seen1']) }
+    { search: async (q, page = 1) => ({ data: page > 1 ? [] : rows }), seen: new Set(['artsubject:seen1']) }
   );
   assert.deepEqual(items.map((i) => i.title), ['Not yet shown']);
   assert.match(note, /1 already shown/);
+});
+
+test('artstation subjects: walks deeper only when the shallow end is used up', async () => {
+  // Page one holds fifty pieces and the all-time ranking barely moves, so
+  // asking only for it capped this source at 500 pieces for its whole life —
+  // about eighty days, after which it would quietly return nothing.
+  const page = (n) => ({ data: Array.from({ length: 4 }, (_, i) => subjectRow(`p${n}_${i}`, `page ${n} piece ${i}`)) });
+
+  const asked = [];
+  await collectArtStationSubjects(
+    { artstationSubjects: ['architecture'] },
+    { search: async (q, p = 1) => { asked.push(p); return page(p); } }
+  );
+  assert.deepEqual(asked, [1, 2], 'four unseen per page, so it stops once it has eight');
+
+  // With page one entirely spent, it has to reach past it rather than give up.
+  const spent = new Set(Array.from({ length: 4 }, (_, i) => `artsubject:p1_${i}`));
+  const deeper = [];
+  const { items } = await collectArtStationSubjects(
+    { artstationSubjects: ['architecture'] },
+    { search: async (q, p = 1) => { deeper.push(p); return page(p); }, seen: spent }
+  );
+  assert.ok(deeper.length >= 3, `only reached page ${deeper.length}`);
+  assert.ok(items.length > 0, 'and still finds work');
+  assert.ok(!items.some((i) => spent.has(i.id)), 'none of it already shown');
+});
+
+test('artstation subjects: overlapping pages cannot yield the same piece twice', async () => {
+  // Pages of a ranking that shifts between requests do overlap, and `seen`
+  // only knows about previous digests.
+  const same = [subjectRow('dup1', 'Same piece'), subjectRow('dup2', 'Also same')];
+  const { items } = await collectArtStationSubjects(
+    { artstationSubjects: ['architecture'] },
+    { search: async () => ({ data: same }) }
+  );
+  assert.equal(new Set(items.map((i) => i.id)).size, items.length, 'no duplicates');
+  assert.equal(items.length, 2);
 });
 
 test('artstation subjects: one failing subject does not lose the others', async () => {
   const { items, note } = await collectArtStationSubjects(
     { artstationSubjects: ['architecture', 'broken'] },
     {
-      search: async (query) => {
+      search: async (query, page = 1) => {
         if (query === 'broken') throw new Error('HTTP 500');
-        return { data: [subjectRow('ok1', 'Fine')] };
+        return { data: page > 1 ? [] : [subjectRow('ok1', 'Fine')] };
       },
     }
   );

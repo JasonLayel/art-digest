@@ -1084,50 +1084,78 @@ export async function collectArtStationSubjects(cfg, { search = null, seen = new
   const subjects = cfg.artstationSubjects?.length ? cfg.artstationSubjects : DEFAULT_SUBJECTS;
   const fetchSubject =
     search ||
-    ((query) =>
+    ((query, page = 1) =>
       get(
         `https://www.artstation.com/api/v2/search/projects.json?query=${encodeURIComponent(query)}` +
-          `&page=1&per_page=50&sorting=likes`,
+          `&page=${page}&per_page=50&sorting=likes`,
         { headers: { 'User-Agent': BROWSER_UA, Accept: 'application/json', Referer: 'https://www.artstation.com/search' } }
       ));
+
+  // Page 1 holds fifty pieces and the all-time most-liked ranking barely
+  // moves, so asking only for it caps this source at 500 pieces for its whole
+  // life — about eighty days at six picks a day, after which it quietly
+  // returns nothing. Walk forward instead, but only as far as needed: while
+  // the top of the ranking is still unseen this costs one request per subject,
+  // exactly as before, and it goes deeper by itself as the shallow end is
+  // used up.
+  const WANTED_PER_SUBJECT = 8;
+  const MAX_PAGES = 5;
 
   const items = [];
   const failed = [];
   let fetched = 0;
   let skipped = 0;
   let sample;
+  const deepPages = [];
+  // `seen` is what past digests showed. This is what THIS walk has taken, so
+  // a page that overlaps the one before it cannot hand back the same piece
+  // twice — which pages of a shifting ranking certainly can.
+  const takenNow = new Set();
 
   for (const query of subjects) {
+    let keptForQuery = 0;
+    let deepest = 0;
     try {
-      const payload = await fetchSubject(query);
-      const rows = payload?.data ?? payload?.results ?? [];
-      fetched += rows.length;
-      sample = sample ?? sampleShape(rows[0]);
-      for (const [index, item] of normalizeArtStation({ data: rows }).entries()) {
-        const id = item.id.replace('artstation:', 'artsubject:');
-        if (seen.has(id) || seen.has(item.id)) {
-          skipped++;
-          continue;
+      for (let page = 1; page <= MAX_PAGES && keptForQuery < WANTED_PER_SUBJECT; page++) {
+        const payload = await fetchSubject(query, page);
+        const rows = payload?.data ?? payload?.results ?? [];
+        if (!rows.length) break;
+        fetched += rows.length;
+        deepest = page;
+        sample = sample ?? sampleShape(rows[0]);
+        for (const [index, item] of normalizeArtStation({ data: rows }).entries()) {
+          const id = item.id.replace('artstation:', 'artsubject:');
+          if (seen.has(id) || seen.has(item.id)) {
+            skipped++;
+            continue;
+          }
+          if (takenNow.has(id)) continue;
+          takenNow.add(id);
+          // Rank across the whole walk, not within the page, or page 2's first
+          // row would claim to outrank page 1's last.
+          const rank = (page - 1) * rows.length + index + 1;
+          items.push({
+            ...item,
+            source: 'artsubjects',
+            id,
+            context: query,
+            // Position among the most-liked for this subject. Not a like count
+            // — ArtStation serves none — and deliberately not a claim of newness.
+            value: Math.max(1, 500 - rank),
+            scoreLabel: `#${rank} most liked for "${query}"`,
+            postedAt: null,
+            // No freshBy: this is the best work on a subject, not today's work,
+            // so it earns popularity credit and nothing for recency.
+            freshBy: undefined,
+          });
+          keptForQuery++;
         }
-        items.push({
-          ...item,
-          source: 'artsubjects',
-          id,
-          context: query,
-          // Position among the most-liked for this subject. Not a like count —
-          // ArtStation serves none — and deliberately not a claim of newness.
-          value: rows.length - index,
-          scoreLabel: `#${index + 1} most liked for "${query}"`,
-          postedAt: null,
-          // No freshBy: this is the best work on a subject, not today's work,
-          // so it earns popularity credit and nothing for recency.
-          freshBy: undefined,
-        });
+        if (!search) await sleep(900);
       }
+      if (deepest > 1) deepPages.push(`${query} to page ${deepest}`);
     } catch (err) {
       failed.push(`${query} (${err.message})`);
     }
-    if (!search) await sleep(900);
   }
 
   if (!items.length && failed.length) throw new Error(failed.join('; '));
@@ -1137,6 +1165,7 @@ export async function collectArtStationSubjects(cfg, { search = null, seen = new
     note: [
       `${subjects.length} subject${subjects.length === 1 ? '' : 's'}`,
       skipped ? `${skipped} already shown, skipped` : '',
+      deepPages.length ? `walked deeper: ${deepPages.join(', ')}` : '',
       failed.length ? `failed: ${failed.join(', ')}` : '',
     ]
       .filter(Boolean)
