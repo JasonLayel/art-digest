@@ -1,7 +1,7 @@
 {
-  "generatedAt": "2026-11-18T20:14:21.483Z",
+  "generatedAt": "2026-11-18T20:43:19.526Z",
   "windowHours": 48,
-  "totalCollected": 630,
+  "totalCollected": 627,
   "nsfwPolicy": "include",
   "nsfwCount": 9,
   "taste": {
@@ -66,8 +66,8 @@
       "home": "https://www.artstation.com",
       "status": "ok",
       "fetched": 500,
-      "kept": 480,
-      "note": "10 subjects · 14 already shown, skipped",
+      "kept": 477,
+      "note": "10 subjects · 16 already shown, skipped",
       "nsfw": 1,
       "error": null
     }
@@ -114,8 +114,8 @@
         "green pupils",
         "grey hair"
       ],
-      "value": 332,
-      "scoreLabel": "score 332 · 311 favourites",
+      "value": 337,
+      "scoreLabel": "score 337 · 316 favourites",
       "postedAt": "2026-11-17T21:21:37.829Z",
       "nsfw": true,
       "context": "honkai: star rail",
@@ -131,32 +131,32 @@
       "thumbVerified": false
     },
     {
-      "id": "artsubject:nEkvKr",
+      "id": "artsubject:v5v63",
       "source": "artsubjects",
-      "title": "Tiled City - Artstation challenge - Dragon's Rise",
-      "artist": "Solène Michon",
-      "artistUrl": "https://www.artstation.com/solenemichon",
-      "url": "https://www.artstation.com/artwork/nEkvKr",
-      "image": "https://cdna.artstation.com/p/assets/images/images/055/175/706/20231205083201/smaller_square/solene-michon-enviro-1.jpg?1701786722",
-      "thumb": "https://cdna.artstation.com/p/assets/images/images/055/175/706/20231205083201/smaller_square/solene-michon-enviro-1.jpg?1701786722",
+      "title": "Fantasy Study Ice Wolf",
+      "artist": "Tyler Smith",
+      "artistUrl": "https://www.artstation.com/tsmith3d",
+      "url": "https://www.artstation.com/artwork/v5v63",
+      "image": "https://cdna.artstation.com/p/assets/images/images/006/303/648/20170615104303/smaller_square/tyler-smith-icewolfrend-01.jpg?1497541383",
+      "thumb": "https://cdna.artstation.com/p/assets/images/images/006/303/648/20170615104303/smaller_square/tyler-smith-icewolfrend-01.jpg?1497541383",
       "thumbFallbacks": [
-        "https://cdna.artstation.com/p/assets/images/images/055/175/706/20231205083201/large/solene-michon-enviro-1.jpg?1701786722",
-        "https://cdna.artstation.com/p/assets/images/images/055/175/706/20231205083201/small/solene-michon-enviro-1.jpg?1701786722",
-        "https://cdna.artstation.com/p/assets/images/images/055/175/706/20231205083201/smaller_square/solene-michon-enviro-1.jpg?1701786722"
+        "https://cdna.artstation.com/p/assets/images/images/006/303/648/20170615104303/large/tyler-smith-icewolfrend-01.jpg?1497541383",
+        "https://cdna.artstation.com/p/assets/images/images/006/303/648/20170615104303/small/tyler-smith-icewolfrend-01.jpg?1497541383",
+        "https://cdna.artstation.com/p/assets/images/images/006/303/648/20170615104303/smaller_square/tyler-smith-icewolfrend-01.jpg?1497541383"
       ],
-      "value": 463,
-      "scoreLabel": "#37 most liked for \"forest environment\"",
+      "value": 481,
+      "scoreLabel": "#19 most liked for \"forest environment\"",
       "nsfw": false,
       "postedAt": null,
       "context": "forest environment",
-      "heat": 74,
+      "heat": 77,
       "dateKnown": false,
-      "affinity": 0.972,
+      "affinity": 0.927,
       "matched": [
+        "Tyler Smith",
         "environment",
         "forest",
-        "city",
-        "dragon"
+        "fantasy"
       ]
     },
     {
@@ -241,6 +241,7 @@
         "breasts",
         "bright pupils",
         "condom",
+        "condom on penis",
         "cum",
         "ejaculation",
         "halo",
@@ -250,11 +251,10 @@
         "looking at viewer",
         "lying",
         "nipples",
-        "on bed",
-        "pantyhose"
+        "on bed"
       ],
-      "value": 327,
-      "scoreLabel": "score 327 · 301 favourites",
+      "value": 329,
+      "scoreLabel": "score 329 · 303 favourites",
       "postedAt": "2026-11-17T08:12:11.604Z",
       "nsfw": true,
       "context": "blue archive",
@@ -269,32 +269,33 @@
       "thumbVerified": false
     },
     {
-      "id": "artsubject:8w6GBQ",
+      "id": "artsubject:nddJE1",
       "source": "artsubjects",
-      "title": "Blender Fantasy Environment Concept Design ( Tutorial in English and 中文 with Blender file )",
-      "artist": "ZooWe (Tsu-Wei) Chen",
-      "artistUrl": "https://www.artstation.com/chenzoowe",
-      "url": "https://www.artstation.com/artwork/8w6GBQ",
-      "image": "https://cdna.artstation.com/p/assets/covers/images/058/074/668/large/zoowe-chen-zoowe-chen-artstationcover-03-min.jpg?1673341244",
-      "thumb": "https://cdna.artstation.com/p/assets/covers/images/058/074/668/medium/zoowe-chen-zoowe-chen-artstationcover-03-min.jpg?1673341244",
+      "title": "ENTANGLED Studio In-House Environment Concept Art | Stylized Castle",
+      "artist": "ENTANGLED Studio",
+      "artistUrl": "https://www.artstation.com/entgld",
+      "url": "https://www.artstation.com/artwork/nddJE1",
+      "image": "https://cdnb.artstation.com/p/assets/covers/images/103/252/109/large/entangled-studio-entangled-studio-minias-ent-con-stylizedcastle.jpg?1792082824",
+      "thumb": "https://cdnb.artstation.com/p/assets/covers/images/103/252/109/medium/entangled-studio-entangled-studio-minias-ent-con-stylizedcastle.jpg?1792082824",
       "thumbFallbacks": [
-        "https://cdna.artstation.com/p/assets/covers/images/058/074/668/large/zoowe-chen-zoowe-chen-artstationcover-03-min.jpg?1673341244",
-        "https://cdna.artstation.com/p/assets/covers/images/058/074/668/small/zoowe-chen-zoowe-chen-artstationcover-03-min.jpg?1673341244",
-        "https://cdna.artstation.com/p/assets/covers/images/058/074/668/smaller_square/zoowe-chen-zoowe-chen-artstationcover-03-min.jpg?1673341244"
+        "https://cdnb.artstation.com/p/assets/covers/images/103/252/109/large/entangled-studio-entangled-studio-minias-ent-con-stylizedcastle.jpg?1792082824",
+        "https://cdnb.artstation.com/p/assets/covers/images/103/252/109/small/entangled-studio-entangled-studio-minias-ent-con-stylizedcastle.jpg?1792082824",
+        "https://cdnb.artstation.com/p/assets/covers/images/103/252/109/smaller_square/entangled-studio-entangled-studio-minias-ent-con-stylizedcastle.jpg?1792082824"
       ],
-      "value": 493,
-      "scoreLabel": "#7 most liked for \"castle ruins\"",
+      "value": 484,
+      "scoreLabel": "#16 most liked for \"castle ruins\"",
       "nsfw": false,
       "postedAt": null,
       "context": "castle ruins",
-      "heat": 79,
+      "heat": 78,
       "dateKnown": false,
-      "affinity": 0.627,
+      "affinity": 0.835,
       "matched": [
         "environment",
+        "house",
         "castle",
         "ruins",
-        "fantasy"
+        "stylized"
       ]
     },
     {
@@ -397,7 +398,7 @@
       "postedAt": "2026-11-17T15:47:52.859Z",
       "nsfw": true,
       "context": "zenless zone zero",
-      "heat": 74,
+      "heat": 73,
       "dateKnown": true,
       "affinity": 0.605,
       "matched": [
@@ -408,25 +409,25 @@
       "thumbVerified": false
     },
     {
-      "id": "artsubject:lDZPZY",
+      "id": "artsubject:VyLgon",
       "source": "artsubjects",
-      "title": "3D Environments in Unreal Engine 5 \"Lost City\"",
-      "artist": "Yota Tasaki",
-      "artistUrl": "https://www.artstation.com/yota0511",
-      "url": "https://www.artstation.com/artwork/lDZPZY",
-      "image": "https://cdnb.artstation.com/p/assets/covers/images/064/558/815/large/yota-tasaki-yota-tasaki-samune02.jpg?1688208831",
-      "thumb": "https://cdnb.artstation.com/p/assets/covers/images/064/558/815/medium/yota-tasaki-yota-tasaki-samune02.jpg?1688208831",
+      "title": "Lost City - UE5",
+      "artist": "Silke Van Der Smissen",
+      "artistUrl": "https://www.artstation.com/silkevandersmissen",
+      "url": "https://www.artstation.com/artwork/VyLgon",
+      "image": "https://cdna.artstation.com/p/assets/covers/images/045/428/116/large/silke-van-der-smissen-silke-van-der-smissen-tntest.jpg?1642692198",
+      "thumb": "https://cdna.artstation.com/p/assets/covers/images/045/428/116/medium/silke-van-der-smissen-silke-van-der-smissen-tntest.jpg?1642692198",
       "thumbFallbacks": [
-        "https://cdnb.artstation.com/p/assets/covers/images/064/558/815/large/yota-tasaki-yota-tasaki-samune02.jpg?1688208831",
-        "https://cdnb.artstation.com/p/assets/covers/images/064/558/815/small/yota-tasaki-yota-tasaki-samune02.jpg?1688208831",
-        "https://cdnb.artstation.com/p/assets/covers/images/064/558/815/smaller_square/yota-tasaki-yota-tasaki-samune02.jpg?1688208831"
+        "https://cdna.artstation.com/p/assets/covers/images/045/428/116/large/silke-van-der-smissen-silke-van-der-smissen-tntest.jpg?1642692198",
+        "https://cdna.artstation.com/p/assets/covers/images/045/428/116/small/silke-van-der-smissen-silke-van-der-smissen-tntest.jpg?1642692198",
+        "https://cdna.artstation.com/p/assets/covers/images/045/428/116/smaller_square/silke-van-der-smissen-silke-van-der-smissen-tntest.jpg?1642692198"
       ],
-      "value": 464,
-      "scoreLabel": "#36 most liked for \"unreal engine environment\"",
+      "value": 488,
+      "scoreLabel": "#12 most liked for \"unreal engine environment\"",
       "nsfw": false,
       "postedAt": null,
       "context": "unreal engine environment",
-      "heat": 74,
+      "heat": 78,
       "dateKnown": false,
       "affinity": 0.7,
       "matched": [
@@ -539,25 +540,25 @@
       "thumbVerified": false
     },
     {
-      "id": "artsubject:KOkOxB",
+      "id": "artsubject:vDV5WA",
       "source": "artsubjects",
-      "title": "Sandstone steampunk city",
-      "artist": "Forrest white",
-      "artistUrl": "https://www.artstation.com/bsl",
-      "url": "https://www.artstation.com/artwork/KOkOxB",
-      "image": "https://cdna.artstation.com/p/assets/covers/images/050/136/154/20220601213516/smaller_square/forrest-white-forrest-white-1.jpg?1654137316",
-      "thumb": "https://cdna.artstation.com/p/assets/covers/images/050/136/154/20220601213516/smaller_square/forrest-white-forrest-white-1.jpg?1654137316",
+      "title": "AIDIN - CITY ENVIRONMENT",
+      "artist": "Mauger Baptiste",
+      "artistUrl": "https://www.artstation.com/maugerbaptiste3",
+      "url": "https://www.artstation.com/artwork/vDV5WA",
+      "image": "https://cdnb.artstation.com/p/assets/covers/images/072/340/195/20240205113141/smaller_square/mauger-baptiste-mauger-baptiste-thumbnail.jpg?1707154301",
+      "thumb": "https://cdnb.artstation.com/p/assets/covers/images/072/340/195/20240205113141/smaller_square/mauger-baptiste-mauger-baptiste-thumbnail.jpg?1707154301",
       "thumbFallbacks": [
-        "https://cdna.artstation.com/p/assets/covers/images/050/136/154/20220601213516/large/forrest-white-forrest-white-1.jpg?1654137316",
-        "https://cdna.artstation.com/p/assets/covers/images/050/136/154/20220601213516/small/forrest-white-forrest-white-1.jpg?1654137316",
-        "https://cdna.artstation.com/p/assets/covers/images/050/136/154/20220601213516/smaller_square/forrest-white-forrest-white-1.jpg?1654137316"
+        "https://cdnb.artstation.com/p/assets/covers/images/072/340/195/20240205113141/large/mauger-baptiste-mauger-baptiste-thumbnail.jpg?1707154301",
+        "https://cdnb.artstation.com/p/assets/covers/images/072/340/195/20240205113141/small/mauger-baptiste-mauger-baptiste-thumbnail.jpg?1707154301",
+        "https://cdnb.artstation.com/p/assets/covers/images/072/340/195/20240205113141/smaller_square/mauger-baptiste-mauger-baptiste-thumbnail.jpg?1707154301"
       ],
-      "value": 467,
-      "scoreLabel": "#33 most liked for \"environment concept art\"",
+      "value": 497,
+      "scoreLabel": "#3 most liked for \"city concept art\"",
       "nsfw": false,
       "postedAt": null,
-      "context": "environment concept art",
-      "heat": 75,
+      "context": "city concept art",
+      "heat": 80,
       "dateKnown": false,
       "affinity": 0.607,
       "matched": [
@@ -652,43 +653,44 @@
         "large breasts",
         "looking at viewer"
       ],
-      "value": 343,
-      "scoreLabel": "score 343 · 314 favourites",
+      "value": 347,
+      "scoreLabel": "score 347 · 318 favourites",
       "postedAt": "2026-11-17T19:48:36.190Z",
       "nsfw": true,
       "context": "seitokai ni mo ana wa aru!",
-      "heat": 85,
+      "heat": 86,
       "dateKnown": true,
       "affinity": 0,
       "matched": [],
       "thumbVerified": false
     },
     {
-      "id": "artsubject:n06JxO",
+      "id": "artsubject:284RKy",
       "source": "artsubjects",
-      "title": "AQUA HEROES - Environment Art",
-      "artist": "Kiara Leneuf",
-      "artistUrl": "https://www.artstation.com/kiararbre",
-      "url": "https://www.artstation.com/artwork/n06JxO",
-      "image": "https://cdnb.artstation.com/p/assets/images/images/063/864/769/20230612071058/smaller_square/kiara-leneuf-kiara-leneuf-aquaheroes-conceptart-11.jpg?1686571859",
-      "thumb": "https://cdnb.artstation.com/p/assets/images/images/063/864/769/20230612071058/smaller_square/kiara-leneuf-kiara-leneuf-aquaheroes-conceptart-11.jpg?1686571859",
+      "title": "Ancient Temple Valley UE4",
+      "artist": "Tyler Smith",
+      "artistUrl": "https://www.artstation.com/tsmith3d",
+      "url": "https://www.artstation.com/artwork/284RKy",
+      "image": "https://cdna.artstation.com/p/assets/images/images/033/959/028/large/tyler-smith-render02-01.jpg?1611022565",
+      "thumb": "https://cdna.artstation.com/p/assets/images/images/033/959/028/medium/tyler-smith-render02-01.jpg?1611022565",
       "thumbFallbacks": [
-        "https://cdnb.artstation.com/p/assets/images/images/063/864/769/20230612071058/large/kiara-leneuf-kiara-leneuf-aquaheroes-conceptart-11.jpg?1686571859",
-        "https://cdnb.artstation.com/p/assets/images/images/063/864/769/20230612071058/small/kiara-leneuf-kiara-leneuf-aquaheroes-conceptart-11.jpg?1686571859",
-        "https://cdnb.artstation.com/p/assets/images/images/063/864/769/20230612071058/smaller_square/kiara-leneuf-kiara-leneuf-aquaheroes-conceptart-11.jpg?1686571859"
+        "https://cdna.artstation.com/p/assets/images/images/033/959/028/large/tyler-smith-render02-01.jpg?1611022565",
+        "https://cdna.artstation.com/p/assets/images/images/033/959/028/small/tyler-smith-render02-01.jpg?1611022565",
+        "https://cdna.artstation.com/p/assets/images/images/033/959/028/smaller_square/tyler-smith-render02-01.jpg?1611022565"
       ],
-      "value": 462,
-      "scoreLabel": "#38 most liked for \"space station\"",
+      "value": 489,
+      "scoreLabel": "#11 most liked for \"ancient temple\"",
       "nsfw": false,
       "postedAt": null,
-      "context": "space station",
-      "heat": 74,
+      "context": "ancient temple",
+      "heat": 78,
       "dateKnown": false,
-      "affinity": 0.628,
+      "affinity": 0.573,
       "matched": [
-        "environment",
-        "space",
-        "station"
+        "Tyler Smith",
+        "temple",
+        "ancient",
+        "valley"
       ]
     },
     {
@@ -787,12 +789,12 @@
         "dog girl",
         "grey hair"
       ],
-      "value": 266,
-      "scoreLabel": "score 266 · 256 favourites",
+      "value": 270,
+      "scoreLabel": "score 270 · 260 favourites",
       "postedAt": "2026-11-17T19:27:38.846Z",
       "nsfw": false,
       "context": "hololive",
-      "heat": 69,
+      "heat": 70,
       "dateKnown": true,
       "affinity": 0.323,
       "matched": [
@@ -803,31 +805,31 @@
       "thumbVerified": false
     },
     {
-      "id": "artsubject:eJJ63G",
+      "id": "artsubject:ykO0gR",
       "source": "artsubjects",
-      "title": "Akaviri Vampire City in Vvanderfell--Elder Scroll Fan Art 3",
-      "artist": "Yuhong Ding",
-      "artistUrl": "https://www.artstation.com/yuhongding",
-      "url": "https://www.artstation.com/artwork/eJJ63G",
-      "image": "https://cdna.artstation.com/p/assets/images/images/044/075/524/large/yuhong-ding-interior-5.jpg?1639018369",
-      "thumb": "https://cdna.artstation.com/p/assets/images/images/044/075/524/medium/yuhong-ding-interior-5.jpg?1639018369",
+      "title": "Temple on a dune",
+      "artist": "Evgeny Romanov",
+      "artistUrl": "https://www.artstation.com/evgenyromanov",
+      "url": "https://www.artstation.com/artwork/ykO0gR",
+      "image": "https://cdnb.artstation.com/p/assets/covers/images/047/393/383/large/evgeny-romanov-evgeny-romanov-preview.jpg?1647477403",
+      "thumb": "https://cdnb.artstation.com/p/assets/covers/images/047/393/383/medium/evgeny-romanov-evgeny-romanov-preview.jpg?1647477403",
       "thumbFallbacks": [
-        "https://cdna.artstation.com/p/assets/images/images/044/075/524/large/yuhong-ding-interior-5.jpg?1639018369",
-        "https://cdna.artstation.com/p/assets/images/images/044/075/524/small/yuhong-ding-interior-5.jpg?1639018369",
-        "https://cdna.artstation.com/p/assets/images/images/044/075/524/smaller_square/yuhong-ding-interior-5.jpg?1639018369"
+        "https://cdnb.artstation.com/p/assets/covers/images/047/393/383/large/evgeny-romanov-evgeny-romanov-preview.jpg?1647477403",
+        "https://cdnb.artstation.com/p/assets/covers/images/047/393/383/small/evgeny-romanov-evgeny-romanov-preview.jpg?1647477403",
+        "https://cdnb.artstation.com/p/assets/covers/images/047/393/383/smaller_square/evgeny-romanov-evgeny-romanov-preview.jpg?1647477403"
       ],
-      "value": 490,
-      "scoreLabel": "#10 most liked for \"abandoned interior\"",
+      "value": 462,
+      "scoreLabel": "#38 most liked for \"environment concept art\"",
       "nsfw": false,
       "postedAt": null,
-      "context": "abandoned interior",
-      "heat": 79,
+      "context": "environment concept art",
+      "heat": 74,
       "dateKnown": false,
-      "affinity": 0.477,
+      "affinity": 0.633,
       "matched": [
-        "city",
-        "interior",
-        "abandoned"
+        "Evgeny Romanov",
+        "environment",
+        "temple"
       ]
     },
     {
@@ -921,12 +923,12 @@
         "pussy",
         "rubbing"
       ],
-      "value": 160,
-      "scoreLabel": "score 160 · 147 favourites",
+      "value": 164,
+      "scoreLabel": "score 164 · 151 favourites",
       "postedAt": "2026-11-17T21:42:18.930Z",
       "nsfw": true,
       "context": "genshin impact",
-      "heat": 47,
+      "heat": 48,
       "dateKnown": true,
       "affinity": 0.805,
       "matched": [
@@ -936,31 +938,32 @@
       "thumbVerified": false
     },
     {
-      "id": "artsubject:x3A4y2",
+      "id": "artsubject:ogwwL",
       "source": "artsubjects",
-      "title": "ODENE The City State",
-      "artist": "Mauger Baptiste",
-      "artistUrl": "https://www.artstation.com/maugerbaptiste3",
-      "url": "https://www.artstation.com/artwork/x3A4y2",
-      "image": "https://cdnb.artstation.com/p/assets/images/images/078/624/507/20240802095435/smaller_square/mauger-baptiste-crop01.jpg?1722610475",
-      "thumb": "https://cdnb.artstation.com/p/assets/images/images/078/624/507/20240802095435/smaller_square/mauger-baptiste-crop01.jpg?1722610475",
+      "title": "Mother Ship",
+      "artist": "Paul Chadeisson",
+      "artistUrl": "https://www.artstation.com/pao",
+      "url": "https://www.artstation.com/artwork/ogwwL",
+      "image": "https://cdnb.artstation.com/p/assets/images/images/011/428/893/20180621094039/smaller_square/paul-chadeisson-testspeed-0225ccrop2burn.jpg?1529592040",
+      "thumb": "https://cdnb.artstation.com/p/assets/images/images/011/428/893/20180621094039/smaller_square/paul-chadeisson-testspeed-0225ccrop2burn.jpg?1529592040",
       "thumbFallbacks": [
-        "https://cdnb.artstation.com/p/assets/images/images/078/624/507/20240802095435/large/mauger-baptiste-crop01.jpg?1722610475",
-        "https://cdnb.artstation.com/p/assets/images/images/078/624/507/20240802095435/small/mauger-baptiste-crop01.jpg?1722610475",
-        "https://cdnb.artstation.com/p/assets/images/images/078/624/507/20240802095435/smaller_square/mauger-baptiste-crop01.jpg?1722610475"
+        "https://cdnb.artstation.com/p/assets/images/images/011/428/893/20180621094039/large/paul-chadeisson-testspeed-0225ccrop2burn.jpg?1529592040",
+        "https://cdnb.artstation.com/p/assets/images/images/011/428/893/20180621094039/small/paul-chadeisson-testspeed-0225ccrop2burn.jpg?1529592040",
+        "https://cdnb.artstation.com/p/assets/images/images/011/428/893/20180621094039/smaller_square/paul-chadeisson-testspeed-0225ccrop2burn.jpg?1529592040"
       ],
-      "value": 469,
-      "scoreLabel": "#31 most liked for \"ancient temple\"",
+      "value": 493,
+      "scoreLabel": "#7 most liked for \"space station\"",
       "nsfw": false,
       "postedAt": null,
-      "context": "ancient temple",
-      "heat": 75,
+      "context": "space station",
+      "heat": 79,
       "dateKnown": false,
-      "affinity": 0.525,
+      "affinity": 0.48,
       "matched": [
-        "city",
-        "temple",
-        "ancient"
+        "Paul Chadeisson",
+        "space",
+        "station",
+        "ship"
       ]
     },
     {
@@ -1057,8 +1060,8 @@
         "hanging breasts",
         "heart"
       ],
-      "value": 265,
-      "scoreLabel": "score 265 · 242 favourites",
+      "value": 266,
+      "scoreLabel": "score 266 · 243 favourites",
       "postedAt": "2026-11-17T12:13:44.998Z",
       "nsfw": true,
       "context": "pokemon",
@@ -1072,30 +1075,31 @@
       "thumbVerified": false
     },
     {
-      "id": "artsubject:eLbKX",
+      "id": "artsubject:8BAOPE",
       "source": "artsubjects",
-      "title": "Life on the Edge",
-      "artist": "Gabriel Yeganyan",
-      "artistUrl": "https://www.artstation.com/gabe-11",
-      "url": "https://www.artstation.com/artwork/eLbKX",
-      "image": "https://cdnb.artstation.com/p/assets/images/images/008/537/525/20171215190213/smaller_square/gabriel-yeganyan-t1.jpg?1513386134",
-      "thumb": "https://cdnb.artstation.com/p/assets/images/images/008/537/525/20171215190213/smaller_square/gabriel-yeganyan-t1.jpg?1513386134",
+      "title": "Into The Radius 2 | Abandoned Dacha Environment",
+      "artist": "Stanislav Petrushin",
+      "artistUrl": "https://www.artstation.com/frozishe",
+      "url": "https://www.artstation.com/artwork/8BAOPE",
+      "image": "https://cdna.artstation.com/p/assets/covers/images/098/591/524/large/stanislav-petrushin-stanislav-petrushin-preview.webp?1777484731",
+      "thumb": "https://cdna.artstation.com/p/assets/covers/images/098/591/524/medium/stanislav-petrushin-stanislav-petrushin-preview.webp?1777484731",
       "thumbFallbacks": [
-        "https://cdnb.artstation.com/p/assets/images/images/008/537/525/20171215190213/large/gabriel-yeganyan-t1.jpg?1513386134",
-        "https://cdnb.artstation.com/p/assets/images/images/008/537/525/20171215190213/small/gabriel-yeganyan-t1.jpg?1513386134",
-        "https://cdnb.artstation.com/p/assets/images/images/008/537/525/20171215190213/smaller_square/gabriel-yeganyan-t1.jpg?1513386134"
+        "https://cdna.artstation.com/p/assets/covers/images/098/591/524/large/stanislav-petrushin-stanislav-petrushin-preview.webp?1777484731",
+        "https://cdna.artstation.com/p/assets/covers/images/098/591/524/small/stanislav-petrushin-stanislav-petrushin-preview.webp?1777484731",
+        "https://cdna.artstation.com/p/assets/covers/images/098/591/524/smaller_square/stanislav-petrushin-stanislav-petrushin-preview.webp?1777484731"
       ],
-      "value": 493,
-      "scoreLabel": "#7 most liked for \"city concept art\"",
+      "value": 469,
+      "scoreLabel": "#31 most liked for \"abandoned interior\"",
       "nsfw": false,
       "postedAt": null,
-      "context": "city concept art",
-      "heat": 79,
+      "context": "abandoned interior",
+      "heat": 75,
       "dateKnown": false,
-      "affinity": 0.398,
+      "affinity": 0.537,
       "matched": [
-        "Gabriel Yeganyan",
-        "city"
+        "environment",
+        "interior",
+        "abandoned"
       ]
     },
     {
@@ -1194,7 +1198,7 @@
       "postedAt": "2026-11-17T14:23:45.420Z",
       "nsfw": false,
       "context": "arknights",
-      "heat": 40,
+      "heat": 39,
       "dateKnown": true,
       "affinity": 0.91,
       "matched": [
@@ -1207,29 +1211,29 @@
       "thumbVerified": false
     },
     {
-      "id": "artsubject:98wokq",
+      "id": "artsubject:aG3oQL",
       "source": "artsubjects",
-      "title": "3D girl potrait",
-      "artist": "FlyCat",
-      "artistUrl": "https://www.artstation.com/thoredant",
-      "url": "https://www.artstation.com/artwork/98wokq",
-      "image": "https://cdna.artstation.com/p/assets/video_clips/images/078/587/204/20240801072928/smaller_square/flycat-fly-thumb.jpg?1722515368",
-      "thumb": "https://cdna.artstation.com/p/assets/video_clips/images/078/587/204/20240801072928/smaller_square/flycat-fly-thumb.jpg?1722515368",
+      "title": "Forest knight",
+      "artist": "Lily Curtis",
+      "artistUrl": "https://www.artstation.com/lilycurtis",
+      "url": "https://www.artstation.com/artwork/aG3oQL",
+      "image": "https://cdna.artstation.com/p/assets/images/images/079/531/580/20240901000524/smaller_square/lily-curtis-forest-knight.jpg?1725167124",
+      "thumb": "https://cdna.artstation.com/p/assets/images/images/079/531/580/20240901000524/smaller_square/lily-curtis-forest-knight.jpg?1725167124",
       "thumbFallbacks": [
-        "https://cdna.artstation.com/p/assets/video_clips/images/078/587/204/20240801072928/large/flycat-fly-thumb.jpg?1722515368",
-        "https://cdna.artstation.com/p/assets/video_clips/images/078/587/204/20240801072928/small/flycat-fly-thumb.jpg?1722515368",
-        "https://cdna.artstation.com/p/assets/video_clips/images/078/587/204/20240801072928/smaller_square/flycat-fly-thumb.jpg?1722515368"
+        "https://cdna.artstation.com/p/assets/images/images/079/531/580/20240901000524/large/lily-curtis-forest-knight.jpg?1725167124",
+        "https://cdna.artstation.com/p/assets/images/images/079/531/580/20240901000524/small/lily-curtis-forest-knight.jpg?1725167124",
+        "https://cdna.artstation.com/p/assets/images/images/079/531/580/20240901000524/smaller_square/lily-curtis-forest-knight.jpg?1725167124"
       ],
-      "value": 492,
-      "scoreLabel": "#8 most liked for \"realistic portrait\"",
+      "value": 466,
+      "scoreLabel": "#34 most liked for \"realistic portrait\"",
       "nsfw": false,
       "postedAt": null,
       "context": "realistic portrait",
-      "heat": 79,
+      "heat": 75,
       "dateKnown": false,
-      "affinity": 0.382,
+      "affinity": 0.442,
       "matched": [
-        "girl",
+        "forest",
         "portrait"
       ]
     },
