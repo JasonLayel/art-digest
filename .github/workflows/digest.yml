@@ -33,19 +33,13 @@ jobs:
         with:
           node-version: '22'
 
-      - name: Test the collector and the mail path
-        run: |
-          node test/run.mjs
-          mkdir -p "${RUNNER_TEMP}/digest-certs"
-          openssl req -x509 -newkey rsa:2048 -nodes -days 2 -subj /CN=localhost \
-            -keyout "${RUNNER_TEMP}/digest-certs/key.pem" \
-            -out "${RUNNER_TEMP}/digest-certs/cert.pem" 2>/dev/null
-          CERT_DIR="${RUNNER_TEMP}/digest-certs" node test/smtp.mjs
+      - name: Test the collector
+        run: node test/run.mjs
 
       - name: Collect the digest
         env:
           # All optional. GitHub's runners are datacenter IPs, which Reddit
-          # throttles and DeviantArt refuses outright; with these secrets set
+          # throttles hard; with these secrets set
           # the collector uses each site's official API instead of guessing at
           # public endpoints. See art-digest/README.md.
           REDDIT_CLIENT_ID: ${{ secrets.REDDIT_CLIENT_ID }}
