@@ -116,7 +116,7 @@ niche ones.
 
 Adult work is **kept and flagged**, not filtered out: every item carries
 `nsfw: true|false`, the widget shows an `18+` badge with an
-Everything / SFW / 18+ filter and an optional blur, and the email labels each
+Everything / SFW / 18+ filter and an optional blur, and the RSS feed labels each
 adult pick. `ART_DIGEST_NSFW=exclude` drops them instead; `only` keeps nothing
 else.
 
@@ -136,8 +136,6 @@ What each source actually returns:
 | --- | --- |
 | Reddit | `over_18` posts included and flagged. On the Atom fallback the flag comes from the feed's nsfw category, which is less reliable than the JSON API's |
 | Danbooru | `questionable` and `explicit` ratings flagged |
-| DeviantArt | mature deviations requested from the API and flagged |
-| Bluesky | posts labelled porn / sexual / nudity / graphic-media flagged |
 | ArtStation | adult work is flagged, but the logged-out explore feed rarely carries any |
 | Pixiv | the R-18 ranking is only served to a logged-in session — set `PIXIV_SESSION` to your own `PHPSESSID` cookie to include it |
 
@@ -156,17 +154,15 @@ differently from a home connection:
 | --- | --- |
 | Pixiv | works (all-ages ranking only) |
 | ArtStation | works |
-| Bluesky | the public AppView answers `403` to GitHub's runners; set `BLUESKY_IDENTIFIER` and `BLUESKY_APP_PASSWORD` (an [app password](https://bsky.app/settings/app-passwords), not your account password) for a signed-in route |
 | Danbooru | works |
 | Reddit | the JSON API answers `403 Blocked`; the collector falls back to the Atom feed, which works but has no vote counts. Set `REDDIT_CLIENT_ID` / `REDDIT_CLIENT_SECRET` (a *script* app at <https://www.reddit.com/prefs/apps>) to get the real API and real upvote counts |
-| DeviantArt | `403` on every RSS host. Set `DEVIANTART_CLIENT_ID` / `DEVIANTART_CLIENT_SECRET` (register at <https://www.deviantart.com/developers/apps>) and the collector uses the official Daily Deviations API instead |
 
 Both are repository secrets (*Settings → Secrets and variables → Actions*) and
 both are optional — the digest ships with whatever sources answer.
 
 ### Thumbnails
 
-Thumbnails are checked before the digest ships, because the email cannot retry
+Thumbnails are checked before the digest ships, because the reader cannot retry
 a broken image the way the widget can. The check runs from CI, though, and the
 reader does not: a CDN that refuses a datacenter will serve a browser or
 Gmail's proxy perfectly well. So a candidate that fails verification is marked
@@ -217,7 +213,7 @@ Two things follow, and both are load-bearing:
   source was running four requests a day to throw away everything it collected.
   It is gone. The profile still re-ranks everything every source returns.
 - **ArtStation picks are labelled `date unknown`,** in the gallery and the
-  email, and earn no freshness points (see below). They are in the digest
+  notification, and earn no freshness points (see below). They are in the digest
   because ArtStation is featuring them, which is a real signal — just not a
   signal about age.
 
@@ -432,7 +428,6 @@ python3 -m http.server 8000     # then open /art-digest/
 | `ART_DIGEST_WINDOW_HOURS` | `48` | How new "new" has to be |
 | `ART_DIGEST_SUBS` | see above | Comma-separated subreddits, replacing the default list |
 | `ART_DIGEST_EXTRA_SUBS` | unset | Comma-separated subreddits to add to the default list |
-| `ART_DIGEST_TAGS` | conceptart, characterart, dnd, fanart, digitalart | Bluesky hashtags to search |
 | `ART_DIGEST_SOURCES` | all | Comma-separated source ids to run (`artstation,reddit,pixiv,deviantart,bluesky,danbooru`) |
 | `ART_DIGEST_NSFW` | `include` | `include`, `exclude` or `only` |
 | `ART_DIGEST_TASTE_WEIGHT` | `40` | Heat points a perfect taste match is worth |
@@ -442,7 +437,6 @@ python3 -m http.server 8000     # then open /art-digest/
 | `ART_DIGEST_PIXIV_PROXY` | `https://i.pixiv.re` | Pixiv blocks hotlinked thumbnails, so they're re-served through a mirror. Set to empty to drop Pixiv thumbnails instead |
 | `ART_DIGEST_OUT` | `data` | Output directory |
 | `REDDIT_CLIENT_ID` / `REDDIT_CLIENT_SECRET` | unset | Optional. Reddit blocks datacenter IPs on the public JSON API; with these set the collector uses app-only OAuth instead |
-| `DEVIANTART_CLIENT_ID` / `DEVIANTART_CLIENT_SECRET` | unset | Optional. Without them DeviantArt is unreachable from CI; with them the collector reads Daily Deviations from the official API |
 
 ## Schedule
 
@@ -480,13 +474,13 @@ node tools/notify.mjs            # dry run against the last digest
 
 `data/feed.xml` is a standard RSS feed with one entry per artwork, so a reader
 tracks what you have seen piece by piece. Readers fetch the images themselves,
-over your own connection, which is why the feed can link them where the email
+over your own connection, which is why the feed can link them where a datacenter
 has to carry them.
 
 ## Tests
 
 ```sh
-node test/run.mjs    # parsers, ranking, thumbnails, email template
+node test/run.mjs    # parsers, ranking, thumbnails, taste, tools
 
 # mail round-trip against a throwaway TLS server
 openssl req -x509 -newkey rsa:2048 -nodes -days 2 -subj /CN=localhost \
