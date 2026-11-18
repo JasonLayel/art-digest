@@ -9,6 +9,10 @@ on:
         description: 'ArtStation username to probe (blank to skip)'
         required: false
         default: 'jasonlayel'
+      danbooru_thumbs:
+        description: 'Find out why Danbooru thumbnails are blank'
+        required: false
+        default: 'false'
       probe_subjects:
         description: 'Comma-separated subjects to test (blank uses the shipped set)'
         required: false
@@ -53,6 +57,10 @@ jobs:
           # requests, the way PIXIV_SESSION does for Pixiv.
           ARTSTATION_COOKIE: ${{ secrets.ARTSTATION_COOKIE }}
         run: node tools/probe-artstation.mjs "${{ inputs.artstation_user }}"
+
+      - name: Why don't Danbooru thumbnails show?
+        if: inputs.danbooru_thumbs == 'true'
+        run: node tools/probe-danbooru-thumbs.mjs
 
       - name: Is ArtStation search really orderable by date?
         if: inputs.artstation_sorting == 'true'
