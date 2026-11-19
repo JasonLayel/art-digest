@@ -346,6 +346,33 @@
     box.append(blur);
   }
 
+  /**
+   * What to show when the image will not load.
+   *
+   * Danbooru's CDN answers 403 to anything without a clearance cookie, which
+   * a cross-site <img> can never have, so those cards have been blank —
+   * "annoying to have to click into it to see what it is". The tags were
+   * being collected and thrown away all along, and they describe the piece
+   * better than its title does: a title is "kaga (kantai collection)", while
+   * the tags say what is actually in the picture.
+   */
+  function describe(item) {
+    const box = el('div', 'thumb-fallback');
+    box.append(el('strong', null, item.title || 'Untitled'));
+    if (item.artist) box.append(el('span', 'by', item.artist));
+    // Character and series names repeat the title, so lead with the rest.
+    const title = String(item.title || '').toLowerCase();
+    const descriptive = (item.tags || [])
+      .filter((tag) => !title.includes(String(tag).toLowerCase()))
+      .slice(0, 10);
+    if (descriptive.length) {
+      const tags = el('span', 'tag-list');
+      for (const tag of descriptive) tags.append(el('span', 'tag', tag));
+      box.append(tags);
+    }
+    return box;
+  }
+
   function renderCard(item, index) {
     const meta = SOURCE_META[item.source] || { label: item.source, color: 'var(--accent)' };
     const card = el('article', 'card');
@@ -379,12 +406,12 @@
           return;
         }
         img.remove();
-        link.prepend(el('div', 'thumb-fallback', item.title));
+        link.prepend(describe(item));
       });
       img.src = thumbUrl; // last, now that the policy and handler are in place
       link.append(img);
     } else {
-      link.append(el('div', 'thumb-fallback', item.title));
+      link.append(describe(item));
     }
 
     link.append(el('span', 'rank', `#${index + 1}`));
