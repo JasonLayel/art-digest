@@ -9,6 +9,10 @@ on:
         description: 'ArtStation username to probe (blank to skip)'
         required: false
         default: 'jasonlayel'
+      image_proxy:
+        description: 'Test whether a proxy can fetch a blocked Danbooru thumbnail'
+        required: false
+        default: 'false'
       danbooru_thumbs:
         description: 'Find out why Danbooru thumbnails are blank'
         required: false
@@ -57,6 +61,10 @@ jobs:
           # requests, the way PIXIV_SESSION does for Pixiv.
           ARTSTATION_COOKIE: ${{ secrets.ARTSTATION_COOKIE }}
         run: node tools/probe-artstation.mjs "${{ inputs.artstation_user }}"
+
+      - name: Can a proxy fetch a Danbooru thumbnail?
+        if: inputs.image_proxy == 'true'
+        run: node tools/probe-image-proxy.mjs
 
       - name: Why don't Danbooru thumbnails show?
         if: inputs.danbooru_thumbs == 'true'
