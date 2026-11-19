@@ -26,12 +26,16 @@ if (!sample) {
   out.push(`Testing \`${sample}\``, '', '| route | status | content-type | bytes |', '|---|---|---|---|');
 
   const bare = sample.replace(/^https?:\/\//, '');
+  // The first attempt returned 400 with a JSON body from weserv itself, which
+  // is its own complaint about the parameter rather than Danbooru refusing —
+  // so try the forms its documentation actually describes.
   const candidates = [
     ['direct (control)', sample],
-    ['images.weserv.nl', `https://images.weserv.nl/?url=${encodeURIComponent(bare)}&w=400`],
-    ['wsrv.nl', `https://wsrv.nl/?url=${encodeURIComponent(bare)}&w=400`],
-    // Danbooru's own host rather than its CDN, in case only the CDN is gated.
-    ['danbooru.donmai.us path', sample.replace('cdn.donmai.us', 'danbooru.donmai.us')],
+    ['weserv, bare host', `https://images.weserv.nl/?url=${bare}`],
+    ['weserv, ssl: prefix', `https://images.weserv.nl/?url=ssl:${bare}`],
+    ['weserv, full url encoded', `https://images.weserv.nl/?url=${encodeURIComponent(sample)}`],
+    ['wsrv.nl, bare host', `https://wsrv.nl/?url=${bare}`],
+    ['wsrv.nl, ssl: prefix, resized', `https://wsrv.nl/?url=ssl:${bare}&w=400`],
   ];
 
   for (const [label, url] of candidates) {
@@ -42,9 +46,13 @@ if (!sample) {
         signal: AbortSignal.timeout(25_000),
       });
       const type = res.headers.get('content-type') || '—';
-      const body = res.ok ? await res.arrayBuffer() : null;
-      const isImage = /^image\//.test(type) && body && body.byteLength > 1000;
+      const body = await res.arrayBuffer().catch(() => null);
+      const isImage = res.ok && /^image\//.test(type) && body && body.byteLength > 1000;
       out.push(`| ${label} | ${isImage ? '✅' : '❌'} ${res.status} | ${type} | ${body ? body.byteLength : '—'} |`);
+      // A proxy that refuses says why; print it, since the reason is the lead.
+      if (!isImage && /json|text/.test(type) && body) {
+        out.push(`| ↳ said | | \`${new TextDecoder().decode(body).slice(0, 90).replace(/\n/g, ' ')}\` | |`);
+      }
     } catch (err) {
       out.push(`| ${label} | error | ${err.message.slice(0, 44)} | — |`);
     }
