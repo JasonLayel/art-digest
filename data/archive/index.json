@@ -1,6 +1,18 @@
 {
-  "updatedAt": "2026-11-22T20:21:35.549Z",
+  "updatedAt": "2026-11-24T00:48:25.172Z",
   "days": [
+    {
+      "date": "2026-11-24",
+      "generatedAt": "2026-11-24T00:48:25.146Z",
+      "items": 36,
+      "nsfw": 11,
+      "sources": [
+        "artstation",
+        "artsubjects",
+        "danbooru",
+        "pixiv"
+      ]
+    },
     {
       "date": "2026-11-22",
       "generatedAt": "2026-11-22T20:21:35.523Z",
